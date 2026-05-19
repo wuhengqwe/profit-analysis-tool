@@ -1,0 +1,5 @@
+{
+  "app_id": "你的飞书自建应用 app_id",
+  "app_secret": "你的飞书自建应用 app_secret",
+  "cost_sheet_token": "飞书成本表的 spreadsheet_token"
+}
