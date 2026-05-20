@@ -5,6 +5,7 @@ import requests, json, os, webbrowser, csv, io, re, traceback
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import xlrd
+import openpyxl
 
 # === 密钥从同级 config.json 读取，不硬编码 ===
 _CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
@@ -51,6 +52,69 @@ def fetch_cost():
                 if cost > 0: yiwu.append([code, cost])
             except: pass
     return {"p": putian, "y": yiwu}
+
+# ========== 通用文件解析器（自动识别 CSV / XLS / XLSX）==========
+def parse_any_file(file_data):
+    """检测文件魔数，自动选择合适的解析器返回 [{col:val}]"""
+    header = file_data[:8]
+
+    # .xls（CFB/OLE2格式）
+    if header[:4] == b"\xd0\xcf\x11\xe0":
+        import tempfile
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xls")
+        tmp.write(file_data)
+        tmp.close()
+        try:
+            wb = xlrd.open_workbook(tmp.name)
+            ws = wb.sheet_by_index(0)
+            h = [str(ws.cell_value(0, c)).strip() for c in range(ws.ncols)]
+            rows = []
+            for r in range(1, ws.nrows):
+                row = {}
+                for c in range(ws.ncols):
+                    v = ws.cell_value(r, c)
+                    row[h[c]] = v if isinstance(v, str) else str(v) if v is not None else ""
+                rows.append(row)
+            return rows
+        finally:
+            os.unlink(tmp.name)
+
+    # .xlsx（OOXML / PK ZIP格式）
+    if header[:2] == b"PK":
+        import tempfile
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
+        tmp.write(file_data)
+        tmp.close()
+        try:
+            wb = openpyxl.load_workbook(tmp.name, read_only=True, data_only=True)
+            ws = wb.active
+            h = [str(c.value).strip() if c.value is not None else "" for c in next(ws.iter_rows(min_row=1, max_row=1))]
+            rows = []
+            for r in ws.iter_rows(min_row=2, values_only=True):
+                row = {}
+                for i, v in enumerate(r):
+                    if i < len(h):
+                        row[h[i]] = str(v) if v is not None else ""
+                rows.append(row)
+            wb.close()
+            return rows
+        finally:
+            os.unlink(tmp.name)
+
+    # 默认：作为 CSV 解析
+    text = file_data.decode("utf-8-sig")
+    text = text.lstrip("\ufeff")
+    reader = csv.DictReader(io.StringIO(text))
+    rows = []
+    for row in reader:
+        cleaned = {}
+        for k, v in row.items():
+            if k is None:
+                continue
+            key = k.strip().lstrip("\ufeff")
+            cleaned[key] = (v or "").strip()
+        rows.append(cleaned)
+    return rows
 
 # ========== HTML 页面(无 CDN,无外部依赖) ==========
 HTML = r"""<!DOCTYPE html>
@@ -113,15 +177,15 @@ tr.l td{background:#fffbeb}
 
   <div class="ur">
     <div class="ui">
-      <label>1 订单 CSV</label>
+      <label>1 订单数据</label>
       <div class="h">拼多多导出,含:商品id、商家编码-规格维度、商家实收</div>
-      <input type="file" accept=".csv" id="of" onchange="upload('orders')">
+      <input type="file" accept=".csv,.xls,.xlsx" id="of" onchange="upload('orders')">
       <div class="s" id="os">未上传</div>
     </div>
     <div class="ui">
-      <label>2 推广报表 XLS</label>
+      <label>2 推广报表</label>
       <div class="h">拼多多导出,含:商品ID、总花费(元)</div>
-      <input type="file" accept=".xls,.xlsx" id="pf" onchange="upload('promo')">
+      <input type="file" accept=".csv,.xls,.xlsx" id="pf" onchange="upload('promo')">
       <div class="s" id="ps">未上传</div>
     </div>
   </div>
@@ -607,18 +671,7 @@ class Handler(BaseHTTPRequestHandler):
 
                 if file_type == "orders":
                     try:
-                        text = file_data.decode("utf-8-sig")
-                        # 清除可能的重复 BOM
-                        text = text.lstrip("\ufeff")
-                        reader = csv.DictReader(io.StringIO(text))
-                        rows = []
-                        for row in reader:
-                            cleaned = {}
-                            for k, v in row.items():
-                                if k is None: continue
-                                key = k.strip().lstrip("\ufeff")
-                                cleaned[key] = (v or "").strip()
-                            rows.append(cleaned)
+                        rows = parse_any_file(file_data)
                         if rows:
                             keys=list(rows[0].keys())
                             print("=== ORDERS COLS ===")
@@ -631,27 +684,15 @@ class Handler(BaseHTTPRequestHandler):
                             print("名称样本:", repr(rows[0].get("名称", "NOT_FOUND")))
                         self.send_json(200, {"ok": True, "count": len(rows), "data": rows, "keys": list(rows[0].keys()) if rows else []})
                     except Exception as e:
-                        self.send_json(400, {"ok": False, "msg": f"CSV解析失败: {e}"})
+                        traceback.print_exc()
+                        self.send_json(400, {"ok": False, "msg": f"订单文件解析失败: {e}"})
                 elif file_type == "promo":
                     try:
-                        import tempfile
-                        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xls")
-                        tmp.write(file_data)
-                        tmp.close()
-                        wb = xlrd.open_workbook(tmp.name)
-                        ws = wb.sheet_by_index(0)
-                        h = [str(ws.cell_value(0, c)).strip() for c in range(ws.ncols)]
-                        rows = []
-                        for r in range(1, ws.nrows):
-                            row = {}
-                            for c in range(ws.ncols):
-                                v = ws.cell_value(r, c)
-                                row[h[c]] = v if isinstance(v, str) else str(v) if v is not None else ""
-                            rows.append(row)
-                        os.unlink(tmp.name)
+                        rows = parse_any_file(file_data)
                         self.send_json(200, {"ok": True, "count": len(rows), "data": rows})
                     except Exception as e:
-                        self.send_json(400, {"ok": False, "msg": f"XLS解析失败: {e}"})
+                        traceback.print_exc()
+                        self.send_json(400, {"ok": False, "msg": f"推广报表解析失败: {e}"})
                 else:
                     self.send_json(400, {"ok": False, "msg": "未知文件类型"})
             except Exception as e:
