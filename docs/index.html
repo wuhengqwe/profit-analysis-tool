@@ -260,15 +260,23 @@ function analyze(){
           cost_map[pid].tax+=tax; cost_map[pid].refund+=refund; cost_map[pid].orders.push(item);
         }else{ nomatch_count++; unmatched.push({pid:o['商品id']||o['商品ID']||'',code:code,name:name_map[o['商品id']||o['商品ID']||'']||o['商品名称']||o['商品标题']||o['名称']||'',income:parseFloat(o['商家实收金额(元)']||o['商家实收']||o['实收金额']||0),reason:'成本未匹配'}); }
       }
-      // 推广费
+      // 推广费 - 先读表头确定用哪列
+      var promo_cost_col = null;
+      var promo_headers = promo[0] || {};
+      var cost_col_candidates = ['成交花费(元)', '总花费(元)', '成交营销花费(元)', '总营销花费(元)', '推广总花费(元)'];
+      for (var ci = 0; ci < cost_col_candidates.length; ci++) {
+        if (promo_headers[cost_col_candidates[ci]] !== undefined) {
+          promo_cost_col = cost_col_candidates[ci];
+          break;
+        }
+      }
       var promo_cost_map={};
       for(var pi=0;pi<promo.length;pi++){
         var pid2=String(promo[pi]['商品ID']||'').trim();
         var pid2_name=String(promo[pi]['商品名称']||'').trim();
         if(pid2.indexOf('计')>=0||pid2===''||pid2_name.indexOf('计')>=0) continue;
-        var spend_str=promo[pi]['总花费(元)'];
-        if(spend_str===undefined||spend_str==='') spend_str=promo[pi]['成交花费(元)'];
-        var spend=parseFloat(spend_str||0);
+        var spend=0;
+        if(promo_cost_col) spend=parseFloat(promo[pi][promo_cost_col]||0);
         if(spend>0) promo_cost_map[pid2]=(promo_cost_map[pid2]||0)+spend;
       }
       var orphan_promo=[];
