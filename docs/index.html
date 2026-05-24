@@ -194,6 +194,12 @@ function sm(s){
 
 function mc(s){
   var p=sm(s),b=p[0],m=p[1];
+  // 先尝试完整匹配（含+号的组合商品）
+  if(PM[b]!==undefined) return {c:PM[b],m:m,s:'莆田'};
+  var b2=b.replace(/^0+/,'');
+  if(YM[b2]!==undefined) return {c:YM[b2],m:m,s:'义乌'};
+  if(YM[b]!==undefined) return {c:YM[b],m:m,s:'义乌'};
+  // 完整匹配不到，再按+拆分分别匹配
   if(b.indexOf('+')>=0){
     var parts=b.split('+'), total=0, ok=true;
     for(var i=0;i<parts.length;i++){
@@ -212,10 +218,6 @@ function mc(s){
     if(ok) return {c:total, m:1, s:'义乌'};
     return null;
   }
-  if(PM[b]!==undefined) return {c:PM[b],m:m,s:'莆田'};
-  var b2=b.replace(/^0+/,'');
-  if(YM[b2]!==undefined) return {c:YM[b2],m:m,s:'义乌'};
-  if(YM[b]!==undefined) return {c:YM[b],m:m,s:'义乌'};
   return null;
 }
 
