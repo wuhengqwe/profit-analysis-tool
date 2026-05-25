@@ -488,14 +488,30 @@ function exportCSV(){
   for(var oi2=0;oi2<orphan_promo_export.length;oi2++){ var op2=orphan_promo_export[oi2]; lines.push([es(op2.pid),'无订单','','',0,0,0,op2.promo,0,0,0,0,-op2.promo,'-',''].join(',')); }
     // 导出通知信息行
   lines.push(['','','','','','','','','','','','','','',''],['=== 分析报告摘要 ===','','','','','','','','','','','','','',''],['亏损>20链接: '+loss_rows_export+'个','','','','','','','','','','','','','',''],['有推广无订单: '+orphan_promo_export.length+'个, 合计'+r1(orphan_total_export)+'元','','','','','','','','','','','','','',''],['推广费总计: '+r1(total_promo_export)+'元','','','','','','','','','','','','','',''],['总净利润: '+r1(net_w_orphan)+'元','','','','','','','','','','','','','','']);
-  if(exportNotifCodes.length>0){
-    for(var eni=0;eni<exportNotifCodes.length;eni++){
-      var nc=exportNotifCodes[eni];
-      var nd=NC[nc];
-      lines.push(['通知 - '+nc+': '+(nd.date?'['+nd.date+'] ':'')+nd.note,'','','','','','','','','','','','','',''].join(','));
+    // 生成智能通知行
+  var notifMsgs=[];
+  for(var pid in cost_map){
+    var p=cost_map[pid];
+    if(!p.notif) continue;
+    var nt=p.notif.note||'';
+    var pid_short=String(pid).length>12?String(pid).slice(0,12)+'...':String(pid);
+    var msg='';
+    if(nt.indexOf('库存')>=0){
+      msg='[库存紧张] 商品ID:'+pid_short+' '+p.name+' 出'+p.orders.length+'单，'+nt+'，请关注';
+    }else if(nt.indexOf('下架')>=0){
+      msg='[下架] 商品ID:'+pid_short+' '+p.name+' 出'+p.orders.length+'单，该产品已下架，请注意';
+    }else if(nt.indexOf('预计')>=0||nt.indexOf('到货')>=0){
+      msg='[预计到货] 商品ID:'+pid_short+' '+p.name+' 出'+p.orders.length+'单，'+nt;
+    }else{
+      msg='[通知] 商品ID:'+pid_short+' '+p.name+' 出'+p.orders.length+'单，'+nt;
     }
+    notifMsgs.push(msg);
   }
-  lines.push(['','','','','','','','','','','','','','',''],['=== 未匹配订单明细 ('+unmatched_ex.length+'条) ===','','','','','','','','','','','','','',''],['商品ID','商家编码','商品名称','成交额','原因','','','','','','','','','','']);
+  if(notifMsgs.length>0){
+    for(var nmi=0;nmi<notifMsgs.length;nmi++){
+      lines.push([notifMsgs[nmi],'','','','','','','','','','','','','',''].join(','));
+    }
+  }  lines.push(['','','','','','','','','','','','','','',''],['=== 未匹配订单明细 ('+unmatched_ex.length+'条) ===','','','','','','','','','','','','','',''],['商品ID','商家编码','商品名称','成交额','原因','','','','','','','','','','']);
   for(var ui2=0;ui2<unmatched_ex.length;ui2++){ var u2=unmatched_ex[ui2]; lines.push([es(u2.pid),es(u2.code),es(u2.name),r1(u2.income),u2.reason,'','','','','','','','','',''].join(',')); }
   var blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='链接盈亏分析_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
