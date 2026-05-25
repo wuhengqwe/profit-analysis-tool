@@ -39,6 +39,9 @@ h1{font-size:22px;margin-bottom:8px}
 .y td{background:#fef3c7!important}
 .y td:first-child{position:relative}
 .y td:first-child:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:#f59e0b}
+.y td{background:#fef3c7!important}
+.y td:first-child{position:relative}
+.y td:first-child:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:#f59e0b}
 table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
 th{background:#f8fafc;padding:6px 7px;text-align:right;font-weight:600;border-bottom:2px solid #e2e8f0}
 th:first-child{text-align:left}
@@ -99,6 +102,9 @@ fetch('cost_data.json').then(function(r){return r.json();}).then(function(d){
   PUTIAN=d.p||[]; YIWU=d.y||[]; NOTIF=d.n||{};
   PUTIAN.forEach(function(i){PM[i[0]]=i[1];});
   YIWU.forEach(function(i){YM[i[0]]=i[1];});
+  // 建立通知编码查找表
+  NC={};
+  for(var nk in NOTIF){ NC[nk]=NOTIF[nk]; var nk2=nk.replace(/^0+/,''); if(nk2!==nk) NC[nk2]=NOTIF[nk]; }
   var ciText='<span class="b">✅</span><span>成本已加载：莆田 '+PUTIAN.length+' 项 · 义乌 '+YIWU.length+' 项</span>';
   var notifCount=Object.keys(NOTIF).length;
   if(notifCount>0){
@@ -311,20 +317,55 @@ function analyze(){
       var cg='<tr><td>成交额</td><td>'+r1(total_income)+'</td></tr><tr><td>货款成本</td><td>-'+r1(total_cost)+'</td></tr><tr><td>包装损耗(5%)</td><td>-'+r1(total_pack)+'</td></tr><tr><td>推广费</td><td>-'+r1(total_promo)+'</td></tr><tr><td>技术服务费(0.6%)</td><td>-'+r1(total_tech)+'</td></tr><tr><td>快递费</td><td>-'+r1(total_delivery)+' ('+Math.round(total_delivery/2.5)+'单×2.5)</td></tr><tr><td>税费(1.5%)</td><td>-'+r1(total_tax)+'</td></tr><tr><td>退款损耗(5%)</td><td>-'+r1(total_refund)+'</td></tr><tr style="font-weight:700;color:'+(net_total>=0?'#22c55e':'#ef4444')+'"><td>净利润</td><td>'+r1(net_total)+'</td></tr><tr><td>利润率</td><td>'+rate_total+'%</td></tr>';
       document.getElementById('cg').innerHTML=cg;
       // 明细表
-      var th='<tr><th>序号</th><th>商品ID</th><th>商品名称</th><th>规格</th><th>商家编码</th><th>仓库</th><th>成交额</th><th>货款成本</th><th>包装损耗</th><th>推广费</th><th>技术服务费</th><th>快递费</th><th>税费</th><th>退款损耗</th><th>净利润</th><th>利润率</th><th>订单数</th></tr>';
+      var th='<tr><th>序号</th><th>商品ID</th><th>商品名称</th><th>规格</th><th>商家编码</th><th>仓库</th><th>成交额</th><th>货款成本</th><th>包装损耗</th><th>推广费</th><th>技术服务费</th><th>快递费</th><th>税费</th><th>退款损耗</th><th>净利润</th><th>利润率</th><th>订单数</th><th style="width:30px">通知</th></tr>';
       var tb='', idx=0, wp_cnt=0, yw_cnt=0, loss_rows=[];
       for(var key in cost_map){
         var p=cost_map[key]; idx++; var is_yi=p.orders[0].warehouse==='义乌';
         if(is_yi) yw_cnt+=p.count; else wp_cnt+=p.count;
         var wr=is_yi?'义乌':'莆田'; var oo=p.orders[0]; var np=p.net_profit; var pr=p.income>0?r1(np/p.income*100):0;
         if(np<-20) loss_rows.push({pid:key,name:oo.name,net_profit:np,income:p.income,cost:p.cost,count:p.count});
-        tb+='<tr'+(np<0?' class="l"':'')+'><td>'+idx+'</td><td>'+e(key)+'</td><td>'+e(oo.name)+'</td><td>'+e(oo.spec||'')+'</td><td>'+e(oo.code)+'</td><td>'+wr+'</td><td>'+r1(p.income)+'</td><td>'+r1(p.cost)+'</td><td>'+r1(p.pack_cost)+'</td><td>'+r1(p.promo)+'</td><td>'+r1(p.tech_fee)+'</td><td>'+r1(p.delivery)+'</td><td>'+r1(p.tax)+'</td><td>'+r1(p.refund)+'</td><td style="color:'+(np>=0?'#22c55e':'#ef4444')+'">'+r1(np)+'</td><td>'+pr+'%</td><td>'+p.count+'</td></tr>';
+        tb+='<tr'+(np<0?' class="l"':'')+(p.notif?' style="background:#fef3c7"':'')+'><td>'+idx+'</td><td>'+e(key)+'</td><td>'+e(oo.name)+'</td><td>'+e(oo.spec||'')+'</td><td>'+e(oo.code)+'</td><td>'+wr+'</td><td>'+r1(p.income)+'</td><td>'+r1(p.cost)+'</td><td>'+r1(p.pack_cost)+'</td><td>'+r1(p.promo)+'</td><td>'+r1(p.tech_fee)+'</td><td>'+r1(p.delivery)+'</td><td>'+r1(p.tax)+'</td><td>'+r1(p.refund)+'</td><td style="color:'+(np>=0?'#22c55e':'#ef4444')+'">'+r1(np)+'</td><td>'+pr+'%</td><td>'+p.count+'</td><td style="text-align:center">'+(p.notif?'<span style="cursor:help" title="'+e(p.notif.note)+'">⚠️</span>':'')+'</td></tr>';
       }
       document.getElementById('th').innerHTML=th;
       document.getElementById('tb').innerHTML=tb;
       document.getElementById('wn').innerHTML='<div style="font-size:14px;margin-bottom:8px;font-weight:600">匹配结果</div><div style="margin-bottom:8px">匹配 <span style="color:#22c55e">'+match_count+'</span> 条 · 未匹配 <span style="color:#ef4444">'+nomatch_count+'</span> 条<span style="font-size:11px;color:#94a3b8;margin-left:8px">(已过滤 '+filtered_count+' 条 · 无编码 '+nocode_count+' 条 · 成本未匹配 '+(nomatch_count-filtered_count-nocode_count)+' 条)</span></div><div>莆田 <span style="color:#2563eb">'+wp_cnt+'</span> 条 · 义乌 <span style="color:#2563eb">'+yw_cnt+'</span> 条</div>';
       // 分析报告
-      var ar='<div style="background:#fff;border-radius:10px;padding:14px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,0.08)">';
+        // 到货提醒：有通知但订单里未匹配的产品
+  var notifUnmatched=[];
+  for(var nk in NOTIF){
+    var foundInOrder=false;
+    for(var key2 in cost_map){
+      var cm=cost_map[key2];
+      if(cm.notif && cm.notif===NOTIF[nk]){ foundInOrder=true; break; }
+      for(var oi3=0;oi3<cm.orders.length;oi3++){
+        if(cm.orders[oi3].code===nk || cm.orders[oi3].code.replace(/^0+/,'')===nk.replace(/^0+/,'')){ foundInOrder=true; break; }
+      }
+      if(foundInOrder) break;
+    }
+    if(!foundInOrder){
+      for(var oi2=0;oi2<orders.length;oi2++){
+        var oc=String(orders[oi2]['商家编码-规格维度']||orders[oi2]['规格维度']||'').trim();
+        if(oc && (oc===nk || oc.replace(/^0+/,'')===nk.replace(/^0+/,''))){ foundInOrder=true; break; }
+      }
+    }
+    if(!foundInOrder) notifUnmatched.push({code:nk,note:NOTIF[nk].note,date:NOTIF[nk].date});
+  }
+  if(notifUnmatched.length>0){
+    var nuHtml='<div style="background:#fff;border-radius:10px;padding:14px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,0.08)">';
+    nuHtml+='<div style="font-size:14px;margin-bottom:10px;font-weight:600;color:#2563eb">🆕 到货提醒（缺货未匹配）</div>';
+    for(var ui3=0;ui3<notifUnmatched.length;ui3++){
+      var nu=notifUnmatched[ui3];
+      nuHtml+='<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;margin-bottom:4px;background:#f0f9ff;border-radius:6px;font-size:13px">';
+      nuHtml+='<span style="background:#2563eb;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600">'+e(nu.code)+'</span>';
+      nuHtml+='<span>'+e(nu.note)+'</span>';
+      if(nu.date) nuHtml+='<span style="color:#94a3b8;font-size:11px">['+nu.date+']</span>';
+      nuHtml+='</div>';
+    }
+    nuHtml+='</div>';
+    ar=nuHtml;
+  }
+
+  var ar='<div style="background:#fff;border-radius:10px;padding:14px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,0.08)">';
       ar+='<div style="font-size:14px;margin-bottom:10px;font-weight:600">📋 分表数据分析报告</div>';
       ar+='<div style="margin-bottom:8px;font-weight:600;color:#ef4444">🔴 亏损>20元的链接 ('+loss_rows.length+'个)</div>';
       if(loss_rows.length>0){
