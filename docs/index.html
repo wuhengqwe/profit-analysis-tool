@@ -211,8 +211,17 @@ function resetAll(){
 
 function sm(s){
   if(!s) return ['',1];
+  // 纯数字乘数: 编码*6
   var m=s.match(/[\*Xx](\d+)$/);
   if(m) return [s.slice(0,m.index).trim(),parseInt(m[1])];
+  // 带单位乘数: 编码*2盒 -> 归一化为*1盒再查
+  var m2=s.match(/[\*Xx](\d+)(\u76d2|\u74f6|\u7c92|\u7247|\u888b|\u6761)$/);
+  if(m2){
+    var base=s.slice(0,m2.index).trim();
+    var qty=parseInt(m2[1]);
+    var unit=m2[2];
+    return [base+'*1'+unit, qty];
+  }
   return [s,1];
 }
 
