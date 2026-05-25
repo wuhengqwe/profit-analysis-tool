@@ -437,7 +437,7 @@ function r1(v){return Math.round(v*10)/10;}
 function e(s){return String(s).replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 function exportCSV(){
-  var cost_map={}, unmatched_ex=[], name_map={};
+  var cost_map={}, unmatched_ex=[], name_map={}, exportNotifCodes=[];
   for(var ni=0;ni<promo.length;ni++){
     var np_id=String(promo[ni]['商品ID']||'').trim();
     var np_name=promo[ni]['商品名称']||'';
@@ -456,9 +456,10 @@ function exportCSV(){
     if(!mc_result){ unmatched_ex.push({pid:pid_ex,code:code,name:name_ex,income:income_ex,reason:'成本未匹配'}); continue; }
     var income=income_ex; var cost=mc_result.c*mc_result.m; var pack_cost=cost*0.05; var tech_fee=income*0.006; var tax=income*0.015; var refund=income*0.05;
     var pid=o['商品id']||o['商品ID']||'';
-    if(!pid||!cost_map[pid]) cost_map[pid]={orders:[],income:0,cost:0,pack_cost:0,tech_fee:0,tax:0,refund:0,name:name_map[pid]||o['商品名称']||o['商品标题']||o['名称']||'',code:code,warehouse:mc_result.s};
+    if(!pid||!cost_map[pid]) cost_map[pid]={orders:[],income:0,cost:0,pack_cost:0,tech_fee:0,tax:0,refund:0,name:name_map[pid]||o['商品名称']||o['商品标题']||o['名称']||'',code:code,warehouse:mc_result.s,notif:null};
     cost_map[pid].income+=income; cost_map[pid].cost+=cost; cost_map[pid].pack_cost+=pack_cost;
     cost_map[pid].tech_fee+=tech_fee; cost_map[pid].tax+=tax; cost_map[pid].refund+=refund; cost_map[pid].orders.push(o);
+    if(!cost_map[pid].notif&&NC[code]){ cost_map[pid].notif=NC[code]; if(exportNotifCodes.indexOf(code)<0) exportNotifCodes.push(code); }
   }
   var promo_cost_map_export={};
   for(var pi=0;pi<promo.length;pi++){
@@ -485,7 +486,17 @@ function exportCSV(){
   var net_nop=r1(ti-tc-tp2-tpr-tt-td-ttx-trf); var net_w_orphan=r1(net_nop-orphan_total_export);
   lines.push(['合计','','','',r1(ti),r1(tc),r1(tp2),r1(tpr),r1(tt),r1(td),r1(ttx),r1(trf),r1(net_w_orphan),ti>0?r1(net_w_orphan/ti*100)+'%':'',''].join(','));
   for(var oi2=0;oi2<orphan_promo_export.length;oi2++){ var op2=orphan_promo_export[oi2]; lines.push([es(op2.pid),'无订单','','',0,0,0,op2.promo,0,0,0,0,-op2.promo,'-',''].join(',')); }
+    // 导出通知信息行
+  var exportNotifLines=['','','','','','','','','','','','','','',''];
+  if(exportNotifCodes.length>0){
+    for(var eni=0;eni<exportNotifCodes.length;eni++){
+      var nc=exportNotifCodes[eni];
+      var nd=NC[nc];
+      exportNotifLines.push(['通知 - '+nc+': '+(nd.date?'['+nd.date+'] ':'')+nd.note,'','','','','','','','','','','','','',''].join(','));
+    }
+  }
   lines.push(['','','','','','','','','','','','','','',''],['=== 分析报告摘要 ===','','','','','','','','','','','','','',''],['亏损>20链接: '+loss_rows_export+'个','','','','','','','','','','','','','',''],['有推广无订单: '+orphan_promo_export.length+'个, 合计'+r1(orphan_total_export)+'元','','','','','','','','','','','','','',''],['推广费总计: '+r1(total_promo_export)+'元','','','','','','','','','','','','','',''],['总净利润: '+r1(net_w_orphan)+'元','','','','','','','','','','','','','','']);
+  if(exportNotifLines.length>1) lines=lines.concat(exportNotifLines);
   lines.push(['','','','','','','','','','','','','','',''],['=== 未匹配订单明细 ('+unmatched_ex.length+'条) ===','','','','','','','','','','','','','',''],['商品ID','商家编码','商品名称','成交额','原因','','','','','','','','','','']);
   for(var ui2=0;ui2<unmatched_ex.length;ui2++){ var u2=unmatched_ex[ui2]; lines.push([es(u2.pid),es(u2.code),es(u2.name),r1(u2.income),u2.reason,'','','','','','','','','',''].join(',')); }
   var blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
