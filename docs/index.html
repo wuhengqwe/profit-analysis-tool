@@ -215,7 +215,7 @@ function sm(s){
   var m=s.match(/[\*Xx](\d+)$/);
   if(m) return [s.slice(0,m.index).trim(),parseInt(m[1])];
   // 带单位乘数: 编码*2盒 -> 归一化为*1盒再查
-  var m2=s.match(/[\*Xx](\d+)(\u76d2|\u74f6|\u7c92|\u7247|\u888b|\u6761)$/);
+  var m2=s.match(/[\*Xx](\d+)(盒|瓶|粒|片|袋|条)$/);
   if(m2){
     var base=s.slice(0,m2.index).trim();
     var qty=parseInt(m2[1]);
@@ -223,9 +223,7 @@ function sm(s){
     return [base+'*1'+unit, qty];
   }
   return [s,1];
-}
-
-function mc(s){
+}function mc(s){
   var p=sm(s),b=p[0],m=p[1];
   // 先尝试完整匹配（含+号的组合商品）
   if(PM[b]!==undefined) return {c:PM[b],m:m,s:'莆田'};
