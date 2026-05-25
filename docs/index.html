@@ -497,13 +497,13 @@ function exportCSV(){
     var pid_short=String(pid).length>12?String(pid).slice(0,12)+'...':String(pid);
     var msg='';
     if(nt.indexOf('库存')>=0){
-      msg='[库存紧张] 商品ID:'+pid_short+' '+p.name+' 出'+p.orders.length+'单，'+nt+'，请关注';
+      msg='[库存紧张] 商品ID:'+pid_short+' 商家编码:'+p.code+' '+p.name+' 出'+p.orders.length+'单，'+nt+'，请关注';
     }else if(nt.indexOf('下架')>=0){
-      msg='[下架] 商品ID:'+pid_short+' '+p.name+' 出'+p.orders.length+'单，该产品已下架，请注意';
+      msg='[下架] 商品ID:'+pid_short+' 商家编码:'+p.code+' '+p.name+' 出'+p.orders.length+'单，该产品已下架，请注意';
     }else if(nt.indexOf('预计')>=0||nt.indexOf('到货')>=0){
-      msg='[预计到货] 商品ID:'+pid_short+' '+p.name+' 出'+p.orders.length+'单，'+nt;
+      msg='[预计到货] 商品ID:'+pid_short+' 商家编码:'+p.code+' '+p.name+' 出'+p.orders.length+'单，'+nt;
     }else{
-      msg='[通知] 商品ID:'+pid_short+' '+p.name+' 出'+p.orders.length+'单，'+nt;
+      msg='[通知] 商品ID:'+pid_short+' 商家编码:'+p.code+' '+p.name+' 出'+p.orders.length+'单，'+nt;
     }
     notifMsgs.push(msg);
   }
