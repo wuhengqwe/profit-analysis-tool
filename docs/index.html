@@ -36,6 +36,9 @@ h1{font-size:22px;margin-bottom:8px}
 .ci2{padding:8px 12px;border-radius:6px;background:#f8fafc;text-align:center}
 .ci2 .v{font-size:16px;font-weight:700}.ci2 .p{font-size:10px;color:#888}.ci2 .l{font-size:10px;color:#555;margin-top:2px}
 .tw{background:#fff;border-radius:10px;padding:12px;overflow-x:auto;box-shadow:0 1px 4px rgba(0,0,0,0.08)}
+.y td{background:#fef3c7!important}
+.y td:first-child{position:relative}
+.y td:first-child:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:#f59e0b}
 table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
 th{background:#f8fafc;padding:6px 7px;text-align:right;font-weight:600;border-bottom:2px solid #e2e8f0}
 th:first-child{text-align:left}
@@ -89,7 +92,7 @@ tr.l td{background:#fffbeb}
 </div>
 
 <script>
-var PUTIAN=[], YIWU=[], PM={}, YM={}, NOTIF={}, orders=null, promo=null;
+var PUTIAN=[], YIWU=[], PM={}, YM={}, NOTIF={}, NC={}, orders=null, promo=null;
 
 // 加载成本数据
 fetch('cost_data.json').then(function(r){return r.json();}).then(function(d){
