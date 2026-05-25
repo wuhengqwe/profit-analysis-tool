@@ -129,12 +129,17 @@ function upload(type){
   if(!f){st(sid,'未上传');return;}
   st(sid,'解析中...','#f59e0b');
   var reader=new FileReader();
+  reader.readAsArrayBuffer(f);
   reader.onload=function(e){
     try{
-      var data=e.target.result;
+      var buf=e.target.result;
       if(type=='orders'){
-        var text=typeof data=='string'?data:new TextDecoder('utf-8').decode(data);
-        text=text.replace(/^\ufeff/,'');
+        // 尝试UTF-8解码，若表头不含中文则降级为GBK
+        var text=new TextDecoder('utf-8').decode(buf).replace(/^\ufeff/,'');
+        var firstLine=text.split('\n')[0]||'';
+        if(firstLine.indexOf('\u5546\u5bb6')<0&&firstLine.indexOf('\u5546\u54c1')<0){
+          text=new TextDecoder('gbk').decode(buf).replace(/^\ufeff/,'');
+        }
         var lines=text.split('\n').filter(function(l){return l.trim();});
         if(lines.length<2){st(sid,'❌ 空文件','#ef4444');return;}
         var headers=parseCSVLine(lines[0]);
