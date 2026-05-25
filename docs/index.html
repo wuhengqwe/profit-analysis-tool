@@ -273,10 +273,11 @@ function analyze(){
           var refund=income*0.05;
           var pid=o['商品id']||o['商品ID']||'';
           var item={pid:pid,code:code,name:name_map[pid]||o['商品名称']||o['商品标题']||o['名称']||'',spec:o['规格']||o['规格名称']||'',income:income,cost:cost,pack_cost:pack_cost,tech_fee:tech_fee,tax:tax,refund:refund,warehouse:mc_result.s};
-          if(pid&&!cost_map[pid]) cost_map[pid]={count:0,income:0,cost:0,pack_cost:0,tech_fee:0,tax:0,refund:0,orders:[]};
+          if(pid&&!cost_map[pid]) cost_map[pid]={count:0,income:0,cost:0,pack_cost:0,tech_fee:0,tax:0,refund:0,orders:[],notif:null};
           cost_map[pid].count++; cost_map[pid].income+=income; cost_map[pid].cost+=cost;
           cost_map[pid].pack_cost+=pack_cost; cost_map[pid].tech_fee+=tech_fee;
           cost_map[pid].tax+=tax; cost_map[pid].refund+=refund; cost_map[pid].orders.push(item);
+          if(!cost_map[pid].notif&&NC[code]) cost_map[pid].notif=NC[code];
         }else{ nomatch_count++; unmatched.push({pid:o['商品id']||o['商品ID']||'',code:code,name:name_map[o['商品id']||o['商品ID']||'']||o['商品名称']||o['商品标题']||o['名称']||'',income:parseFloat(o['商家实收金额(元)']||o['商家实收']||o['实收金额']||0),reason:'成本未匹配'}); }
       }
       // 推广费 - 先读表头确定用哪列
