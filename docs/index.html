@@ -343,36 +343,61 @@ function analyze(){
       document.getElementById('tb').innerHTML=tb;
       document.getElementById('wn').innerHTML='<div style="font-size:14px;margin-bottom:8px;font-weight:600">匹配结果</div><div style="margin-bottom:8px">匹配 <span style="color:#22c55e">'+match_count+'</span> 条 · 未匹配 <span style="color:#ef4444">'+nomatch_count+'</span> 条<span style="font-size:11px;color:#94a3b8;margin-left:8px">(已过滤 '+filtered_count+' 条 · 无编码 '+nocode_count+' 条 · 成本未匹配 '+(nomatch_count-filtered_count-nocode_count)+' 条)</span></div><div>莆田 <span style="color:#2563eb">'+wp_cnt+'</span> 条 · 义乌 <span style="color:#2563eb">'+yw_cnt+'</span> 条</div>';
       // 分析报告
-        // 到货提醒：有通知但订单里未匹配的产品
-  var notifUnmatched=[];
+        // 到货提醒：所有产品通知（模板化展示）
+  var notifAll=[];
   for(var nk in NOTIF){
-    var foundInOrder=false;
+    var nd=NOTIF[nk];
+    // 尝试在已匹配的产品中找到该通知对应的商品
+    var matchedPid='', matchedName='', orderCount=0;
     for(var key2 in cost_map){
       var cm=cost_map[key2];
-      if(cm.notif && cm.notif===NOTIF[nk]){ foundInOrder=true; break; }
       for(var oi3=0;oi3<cm.orders.length;oi3++){
-        if(cm.orders[oi3].code===nk || cm.orders[oi3].code.replace(/^0+/,'')===nk.replace(/^0+/,'')){ foundInOrder=true; break; }
+        if(cm.orders[oi3].code===nk || cm.orders[oi3].code.replace(/^0+/,'')===nk.replace(/^0+/,'')){
+          matchedPid=key2;
+          matchedName=cm.orders[oi3]['商品']||cm.orders[oi3]['商品名称']||'';
+          orderCount=cm.count||0;
+          break;
+        }
       }
-      if(foundInOrder) break;
+      if(matchedPid) break;
     }
-    if(!foundInOrder){
-      for(var oi2=0;oi2<orders.length;oi2++){
-        var oc=String(orders[oi2]['商家编码-规格维度']||orders[oi2]['规格维度']||'').trim();
-        if(oc && (oc===nk || oc.replace(/^0+/,'')===nk.replace(/^0+/,''))){ foundInOrder=true; break; }
-      }
+    // 通知类型判定
+    var type='other', icon='\u2139\ufe0f', label='\u901a\u77e5';
+    var note=nd.note||'';
+    if(note.indexOf('\u4e0b\u67b6')>=0 && note.indexOf('\u5e93\u5b58')<0){
+      type='offline'; icon='\ud83d\udd34'; label='\u4e0b\u67b6';
+    }else if(note.indexOf('\u5e93\u5b58')>=0){
+      type='stock'; icon='\ud83d\udfe1'; label='\u5e93\u5b58\u7d27\u5f20';
+    }else if(note.indexOf('\u9884\u8ba1')>=0 || note.indexOf('\u5230\u8d27')>=0){
+      type='arrival'; icon='\ud83d\udfe2'; label='\u9884\u8ba1\u5230\u8d27';
     }
-    if(!foundInOrder) notifUnmatched.push({code:nk,note:NOTIF[nk].note,date:NOTIF[nk].date});
+    notifAll.push({code:nk,note:note,date:nd.date,type:type,icon:icon,label:label,
+      pid:matchedPid,name:matchedName,orders:orderCount});
   }
-  if(notifUnmatched.length>0){
+  if(notifAll.length>0){
     var nuHtml='<div style="background:#fff;border-radius:10px;padding:14px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,0.08)">';
-    nuHtml+='<div style="font-size:14px;margin-bottom:10px;font-weight:600;color:#2563eb">🆕 到货提醒（缺货未匹配）</div>';
-    for(var ui3=0;ui3<notifUnmatched.length;ui3++){
-      var nu=notifUnmatched[ui3];
-      nuHtml+='<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;margin-bottom:4px;background:#f0f9ff;border-radius:6px;font-size:13px">';
-      nuHtml+='<span style="background:#2563eb;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600">'+e(nu.code)+'</span>';
-      nuHtml+='<span>'+e(nu.note)+'</span>';
-      if(nu.date) nuHtml+='<span style="color:#94a3b8;font-size:11px">['+nu.date+']</span>';
+    nuHtml+='<div style="font-size:14px;margin-bottom:10px;font-weight:600;color:#2563eb">\ud83c\udf1f \u4ea7\u54c1\u901a\u77e5\u5217\u8868</div>';
+    for(var ui3=0;ui3<notifAll.length;ui3++){
+      var nu=notifAll[ui3];
+      var colorMap={'offline':'#ef4444','stock':'#f59e0b','arrival':'#22c55e','other':'#3b82f6'};
+      var bgMap={'offline':'#fef2f2','stock':'#fffbeb','arrival':'#f0fdf4','other':'#eff6ff'};
+      var bg=bgMap[nu.type]||'#f8fafc';
+      var color=colorMap[nu.type]||'#3b82f6';
+      
+      nuHtml+='<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;margin-bottom:4px;background:'+bg+';border-radius:6px;font-size:13px">';
+      nuHtml+='<span style="background:'+color+';color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap">'+nu.icon+' '+nu.label+'</span>';
+      nuHtml+='<div style="flex:1">';
+      nuHtml+='<div style="font-weight:600;margin-bottom:2px">';
+      if(nu.pid){
+        nuHtml+=e(nu.pid)+' '+e(nu.name||'');
+        if(nu.orders) nuHtml+=' <span style="color:#94a3b8;font-weight:400">\u51fa'+nu.orders+'\u5355</span>';
+      }else{
+        nuHtml+=e(nu.code);
+      }
       nuHtml+='</div>';
+      nuHtml+='<div style="color:#475569">'+e(nu.note)+'</div>';
+      if(nu.date) nuHtml+='<div style="color:#94a3b8;font-size:11px;margin-top:2px">['+nu.date+']</div>';
+      nuHtml+='</div></div>';
     }
     nuHtml+='</div>';
     ar=nuHtml;
