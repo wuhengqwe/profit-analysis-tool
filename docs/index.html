@@ -211,19 +211,12 @@ function resetAll(){
 
 function sm(s){
   if(!s) return ['',1];
-  // 纯数字乘数: 编码*6
   var m=s.match(/[\*Xx](\d+)$/);
   if(m) return [s.slice(0,m.index).trim(),parseInt(m[1])];
-  // 带单位乘数: 编码*2盒 -> 归一化为*1盒再查
-  var m2=s.match(/[\*Xx](\d+)(盒|瓶|粒|片|袋|条)$/);
-  if(m2){
-    var base=s.slice(0,m2.index).trim();
-    var qty=parseInt(m2[1]);
-    var unit=m2[2];
-    return [base+'*1'+unit, qty];
-  }
   return [s,1];
-}function mc(s){
+}
+
+function mc(s){
   var p=sm(s),b=p[0],m=p[1];
   // 先尝试完整匹配（含+号的组合商品）
   if(PM[b]!==undefined) return {c:PM[b],m:m,s:'莆田'};
@@ -289,7 +282,7 @@ function analyze(){
           cost_map[pid].count++; cost_map[pid].income+=income; cost_map[pid].cost+=cost;
           cost_map[pid].pack_cost+=pack_cost; cost_map[pid].tech_fee+=tech_fee;
           cost_map[pid].tax+=tax; cost_map[pid].refund+=refund; cost_map[pid].orders.push(item);
-          if(!cost_map[pid].notif){if(NC[code])cost_map[pid].notif=NC[code];else{var _c=code.replace(/^0+/,'');if(NC[_c])cost_map[pid].notif=NC[_c];}}
+          if(!cost_map[pid].notif&&NC[code]) cost_map[pid].notif=NC[code];
         }else{ nomatch_count++; unmatched.push({pid:o['商品id']||o['商品ID']||'',code:code,name:name_map[o['商品id']||o['商品ID']||'']||o['商品名称']||o['商品标题']||o['名称']||'',income:parseFloat(o['商家实收金额(元)']||o['商家实收']||o['实收金额']||0),reason:'成本未匹配'}); }
       }
       // 推广费 - 先读表头确定用哪列
@@ -343,7 +336,42 @@ function analyze(){
       document.getElementById('tb').innerHTML=tb;
       document.getElementById('wn').innerHTML='<div style="font-size:14px;margin-bottom:8px;font-weight:600">匹配结果</div><div style="margin-bottom:8px">匹配 <span style="color:#22c55e">'+match_count+'</span> 条 · 未匹配 <span style="color:#ef4444">'+nomatch_count+'</span> 条<span style="font-size:11px;color:#94a3b8;margin-left:8px">(已过滤 '+filtered_count+' 条 · 无编码 '+nocode_count+' 条 · 成本未匹配 '+(nomatch_count-filtered_count-nocode_count)+' 条)</span></div><div>莆田 <span style="color:#2563eb">'+wp_cnt+'</span> 条 · 义乌 <span style="color:#2563eb">'+yw_cnt+'</span> 条</div>';
       // 分析报告
-        var ar='<div style="background:#fff;border-radius:10px;padding:14px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,0.08)">';
+        // 到货提醒：有通知但订单里未匹配的产品
+  var notifUnmatched=[];
+  for(var nk in NOTIF){
+    var foundInOrder=false;
+    for(var key2 in cost_map){
+      var cm=cost_map[key2];
+      if(cm.notif && cm.notif===NOTIF[nk]){ foundInOrder=true; break; }
+      for(var oi3=0;oi3<cm.orders.length;oi3++){
+        if(cm.orders[oi3].code===nk || cm.orders[oi3].code.replace(/^0+/,'')===nk.replace(/^0+/,'')){ foundInOrder=true; break; }
+      }
+      if(foundInOrder) break;
+    }
+    if(!foundInOrder){
+      for(var oi2=0;oi2<orders.length;oi2++){
+        var oc=String(orders[oi2]['商家编码-规格维度']||orders[oi2]['规格维度']||'').trim();
+        if(oc && (oc===nk || oc.replace(/^0+/,'')===nk.replace(/^0+/,''))){ foundInOrder=true; break; }
+      }
+    }
+    if(!foundInOrder) notifUnmatched.push({code:nk,note:NOTIF[nk].note,date:NOTIF[nk].date});
+  }
+  if(notifUnmatched.length>0){
+    var nuHtml='<div style="background:#fff;border-radius:10px;padding:14px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,0.08)">';
+    nuHtml+='<div style="font-size:14px;margin-bottom:10px;font-weight:600;color:#2563eb">🆕 到货提醒（缺货未匹配）</div>';
+    for(var ui3=0;ui3<notifUnmatched.length;ui3++){
+      var nu=notifUnmatched[ui3];
+      nuHtml+='<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;margin-bottom:4px;background:#f0f9ff;border-radius:6px;font-size:13px">';
+      nuHtml+='<span style="background:#2563eb;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600">'+e(nu.code)+'</span>';
+      nuHtml+='<span>'+e(nu.note)+'</span>';
+      if(nu.date) nuHtml+='<span style="color:#94a3b8;font-size:11px">['+nu.date+']</span>';
+      nuHtml+='</div>';
+    }
+    nuHtml+='</div>';
+    ar=nuHtml;
+  }
+
+  var ar='<div style="background:#fff;border-radius:10px;padding:14px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,0.08)">';
       ar+='<div style="font-size:14px;margin-bottom:10px;font-weight:600">📋 分表数据分析报告</div>';
       ar+='<div style="margin-bottom:8px;font-weight:600;color:#ef4444">🔴 亏损>20元的链接 ('+loss_rows.length+'个)</div>';
       if(loss_rows.length>0){
@@ -396,8 +424,7 @@ function analyze(){
         ar+='</table></div>';
       }
       ar+='</div>';
-      // 分析报告摘要：只显示订单中有涉及的产品通知
-  var ntById('ar').innerHTML=ar;
+      document.getElementById('ar').innerHTML=ar;
       ra.style.display='block'; ld.style.display='none';
     }catch(ex){
       er.innerHTML='❌ 分析出错：'+ex.message;
@@ -493,5 +520,3 @@ function exportCSV(){
 </script>
 </body>
 </html>
-  if(typeof _notifHtml!=="undefined")ar+=_notifHtml||"";
-  
