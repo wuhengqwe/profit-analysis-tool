@@ -396,7 +396,7 @@ function analyze(){
         ar+='</table></div>';
       }
       ar+='</div>';
-      document.ar+=_notifHtml||'';// 分析报告摘要：只显示订单中有涉及的产品通知
+      // 分析报告摘要：只显示订单中有涉及的产品通知
   var notifReport=[];
   for(var nk in NOTIF){
     var nd=NOTIF[nk];
@@ -558,3 +558,5 @@ function exportCSV(){
 </script>
 </body>
 </html>
+  if(typeof _notifHtml!=="undefined")ar+=_notifHtml||"";
+  
