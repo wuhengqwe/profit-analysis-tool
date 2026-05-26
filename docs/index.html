@@ -397,72 +397,7 @@ function analyze(){
       }
       ar+='</div>';
       // 分析报告摘要：只显示订单中有涉及的产品通知
-  var notifReport=[];
-  for(var nk in NOTIF){
-    var nd=NOTIF[nk];
-    var matchedPid='', matchedName='', orderCount=0;
-    var nk_stripped=nk.replace(/^0+/,'');
-    for(var key2 in cost_map){
-      var cm=cost_map[key2];
-      var key_stripped=key2.replace(/^0+/,'');
-      if(key2===nk || key_stripped===nk || key2===nk_stripped || key_stripped===nk_stripped){
-        matchedPid=key2;
-        matchedName=cm.orders[0]? (cm.orders[0]['\u5546\u54c1']||cm.orders[0]['\u5546\u54c1\u540d\u79f0']||'') : '';
-        orderCount=cm.count||0;
-        for(var oi=0;oi<cm.orders.length;oi++){
-          var oc=cm.orders[oi]['\u5546\u54c1']||cm.orders[oi]['\u5546\u54c1\u540d\u79f0']||'';
-          if(oc) matchedName=oc;
-        }
-        break;
-      }
-    }
-    if(!matchedPid) continue;
-    var type='other', icon='\u2139', label='\u901a\u77e5', tmpl='[\u901a\u77e5] \u5546\u54c1ID:{pid} {name} \u51fa{n}\u5355 - {note_raw}';
-    var note=(nd.note||'').trim();
-    if(note.indexOf('\u4e0b\u67b6')>=0 && note.indexOf('\u5e93\u5b58')<0){
-      type='offline'; icon='\u26d4'; label='\u4e0b\u67b6';
-      tmpl='[\u4e0b\u67b6] \u5546\u54c1ID:{pid} {name} \u51fa{n}\u5355 - \u8be5\u4ea7\u54c1\u5df2\u4e0b\u67b6\uff0c\u8bf7\u6ce8\u610f\u5269\u4f59\u5e93\u5b58\u5904\u7406';
-    }else if(note.indexOf('\u5e93\u5b58')>=0){
-      type='stock'; icon='\u26a0\ufe0f'; label='\u5e93\u5b58\u544a\u6025';
-      tmpl='[\u5e93\u5b58\u544a\u6025] \u5546\u54c1ID:{pid} {name} \u51fa{n}\u5355 - {note_raw}\uff0c\u5efa\u8bae\u8865\u8d27';
-    }else if(note.indexOf('\u9884\u552e')>=0){
-      type='presale'; icon='\ud83d\udfe1'; label='\u9884\u552e';
-      tmpl='[\u9884\u552e] \u5546\u54c1ID:{pid} {name} \u51fa{n}\u5355 - \u8be5\u4ea7\u54c1\u9884\u552e\u4e2d\uff0c\u8bf7\u5173\u6ce8\u9884\u552e\u65f6\u95f4';
-    }else if(note.indexOf('\u6da8\u4ef7')>=0){
-      type='priceup'; icon='\ud83d\udd35'; label='\u6da8\u4ef7';
-      tmpl='[\u6da8\u4ef7] \u5546\u54c1ID:{pid} {name} \u51fa{n}\u5355 - {note_raw}\uff0c\u6ce8\u610f\u8c03\u6574\u552e\u4ef7';
-    }else if(note.indexOf('\u964d')>=0){
-      type='pricedown'; icon='\ud83d\udfe3'; label='\u964d\u4ef7';
-      tmpl='[\u964d\u4ef7] \u5546\u54c1ID:{pid} {name} \u51fa{n}\u5355 - {note_raw}\uff0c\u5173\u6ce8\u5229\u6da6\u53d8\u5316';
-    }else if(note.indexOf('\u5230\u8d27')>=0 || note.indexOf('\u9884\u8ba1')>=0){
-      type='arrival'; icon='\ud83d\udfe2'; label='\u5230\u8d27';
-      tmpl='[\u5230\u8d27] \u5546\u54c1ID:{pid} {name} \u51fa{n}\u5355 - {note_raw}';
-    }
-    var msg=tmpl.replace('{pid}',matchedPid).replace('{name}',matchedName||nk).replace('{n}',orderCount).replace('{note_raw}',note);
-    notifReport.push({code:nk,msg:msg,type:type,icon:icon,label:label,date:nd.date});
-  }
-  if(notifReport.length>0){
-    var nrHtml='<div style="background:#fff;border-radius:10px;padding:14px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,0.08)">';
-    nrHtml+='<div style="font-size:14px;margin-bottom:10px;font-weight:600;color:#2563eb">\ud83d\udcca \u5206\u6790\u62a5\u544a\u6458\u8981</div>';
-    var colorMap={'offline':'#ef4444','stock':'#f59e0b','presale':'#f59e0b','priceup':'#2563eb','pricedown':'#8b5cf6','arrival':'#22c55e','other':'#3b82f6'};
-    var bgMap={'offline':'#fef2f2','stock':'#fffbeb','presale':'#fffbeb','priceup':'#eff6ff','pricedown':'#f5f3ff','arrival':'#f0fdf4','other':'#f8fafc'};
-    for(var ui=0;ui<notifReport.length;ui++){
-      var nu=notifReport[ui];
-      var bg=bgMap[nu.type]||'#f8fafc';
-      var color=colorMap[nu.type]||'#3b82f6';
-      nrHtml+='<div style="display:flex;align-items:center;gap:6px;padding:6px 10px;margin-bottom:3px;background:'+bg+';border-left:3px solid '+color+';border-radius:4px;font-size:12px">';
-      nrHtml+='<span style="color:'+color+';font-weight:600;white-space:nowrap">'+nu.icon+' '+nu.label+'</span>';
-      nrHtml+='<span style="color:#1e293b">'+e(nu.msg)+'</span>';
-      if(nu.date) nrHtml+='<span style="color:#94a3b8;font-size:10px;white-space:nowrap">['+nu.date+']</span>';
-      nrHtml+='</div>';
-    }
-    nrHtml+='</div>';
-    var _notifHtml=nrHtml;
-  }}
-
-  
-  ar+=_notifHtml||"";
-  getElementById('ar').innerHTML=ar;
+  var ntById('ar').innerHTML=ar;
       ra.style.display='block'; ld.style.display='none';
     }catch(ex){
       er.innerHTML='❌ 分析出错：'+ex.message;
