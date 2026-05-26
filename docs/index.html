@@ -460,7 +460,7 @@ function analyze(){
         ar+='</table></div>';
       }
       ar+='</div>';
-      document.getElementById('ar').innerHTML=ar;
+      document.ar+=_notifHtml||'';getElementById('ar').innerHTML=ar;
       ra.style.display='block'; ld.style.display='none';
     }catch(ex){
       er.innerHTML='❌ 分析出错：'+ex.message;
