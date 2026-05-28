@@ -207,7 +207,7 @@ tr.l td{background:#fffbeb}
 </div>
 
 <script>
-var PUTIAN=[], YIWU=[], PM={}, YM={}, orders=null, promo=null, results=null;
+var PUTIAN=[], YIWU=[], PM={}, YM={}, orders=null, promo=null, results=null, QTY_COL='';
 
 // 页面加载后获取成本
 fetch('/api/cost').then(function(r){return r.json();}).then(function(d){
@@ -232,9 +232,15 @@ function upload(type){
   fd.append('type',type);
   fetch('/api/upload',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(d){
     if(d.ok){
-      if(type=='orders') orders=d.data;
-      else promo=d.data;
-      st(sid,'✅ '+d.count+' 条','#22c55e');
+      if(type=='orders'){
+        orders=d.data;
+        QTY_COL=d.qty_col||'';
+        var qtyInfo=QTY_COL?' 数量列=['+QTY_COL+']':' ⚠️ 未检测到数量列';
+        st(sid,'✅ '+d.count+' 条'+qtyInfo,'#22c55e');
+      }else{
+        promo=d.data;
+        st(sid,'✅ '+d.count+' 条','#22c55e');
+      }
       checkReady();
     }else{
       st(sid,'❌ '+d.msg,'#ef4444');
@@ -707,7 +713,19 @@ class Handler(BaseHTTPRequestHandler):
                             print("商品名称样本:", repr(rows[0].get("商品名称", "NOT_FOUND")))
                             print("商品标题样本:", repr(rows[0].get("商品标题", "NOT_FOUND")))
                             print("名称样本:", repr(rows[0].get("名称", "NOT_FOUND")))
-                        self.send_json(200, {"ok": True, "count": len(rows), "data": rows, "keys": list(rows[0].keys()) if rows else []})
+                        # 检测数量列
+                        qty_col = ''
+                        qty_keywords = ['商品数量','数量','商品件数','购买数量','件数','购买件数']
+                        for hname in keys:
+                            hclean = hname.replace(r'\(.*?\)','').replace(r'（.*?）','').strip()
+                            for kw in qty_keywords:
+                                if kw in hclean:
+                                    qty_col = hname
+                                    break
+                            if qty_col:
+                                break
+                        print(f"检测到数量列: [{qty_col}]" if qty_col else "未检测到数量列")
+                        self.send_json(200, {"ok": True, "count": len(rows), "data": rows, "keys": list(rows[0].keys()) if rows else [], "qty_col": qty_col})
                     except Exception as e:
                         traceback.print_exc()
                         self.send_json(400, {"ok": False, "msg": f"订单文件解析失败: {e}"})
