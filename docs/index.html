@@ -278,7 +278,7 @@ function analyze(){
           var refund=income*0.05;
           var pid=o['商品id']||o['商品ID']||'';
           var item={pid:pid,code:code,name:name_map[pid]||o['商品名称']||o['商品标题']||o['名称']||'',spec:o['规格']||o['规格名称']||'',income:income,cost:cost,pack_cost:pack_cost,tech_fee:tech_fee,tax:tax,refund:refund,warehouse:mc_result.s};
-          if(pid&&!cost_map[pid]) cost_map[pid]={count:0,income:0,cost:0,pack_cost:0,tech_fee:0,tax:0,refund:0,orders:[],notif:null};
+          if(pid&&!cost_map[pid]) cost_map[pid]={count:0,income:0,cost:0,pack_cost:0,tech_fee:0,tax:0,refund:0,orders:[],notif:null,priceErrorCount:0};
           cost_map[pid].count++; cost_map[pid].income+=income; cost_map[pid].cost+=cost;
           cost_map[pid].pack_cost+=pack_cost; cost_map[pid].tech_fee+=tech_fee;
           cost_map[pid].tax+=tax; cost_map[pid].refund+=refund; cost_map[pid].orders.push(item);
@@ -383,6 +383,14 @@ function analyze(){
         }
         ar+='</table>';
       }else{ ar+='<div style="margin-bottom:8px;color:#22c55e">✅ 没有亏损超过20元的链接</div>'; }
+      // 价格错误提醒
+      if(priceErrorRows.length>0){
+        ar+='<div style="margin-bottom:8px;font-weight:600;color:#dc2626">🔴 价格错误（成交价<成本+2元）('+priceErrorRows.length+'个)</div>';
+        for(var pei=0;pei<priceErrorRows.length;pei++){
+          var pe=priceErrorRows[pei];
+          ar+='<div style="padding:6px 10px;margin-bottom:4px;background:#fef2f2;border-radius:6px;font-size:13px">[下架] 商品ID:'+e(pe.pid)+' '+e(pe.name)+' 出'+pe.count+'单 - 该产品价格错误，请注意检查</div>';
+        }
+      }
       // 无订单推广
       if(orphan_promo.length>0){
         orphan_promo.sort(function(a,b){return b.promo-a.promo;});
@@ -456,9 +464,10 @@ function exportCSV(){
     if(!mc_result){ unmatched_ex.push({pid:pid_ex,code:code,name:name_ex,income:income_ex,reason:'成本未匹配'}); continue; }
     var income=income_ex; var cost=mc_result.c*mc_result.m; var pack_cost=cost*0.05; var tech_fee=income*0.006; var tax=income*0.015; var refund=income*0.05;
     var pid=o['商品id']||o['商品ID']||'';
-    if(!pid||!cost_map[pid]) cost_map[pid]={orders:[],income:0,cost:0,pack_cost:0,tech_fee:0,tax:0,refund:0,name:name_map[pid]||o['商品名称']||o['商品标题']||o['名称']||'',code:code,warehouse:mc_result.s,notif:null};
+    if(!pid||!cost_map[pid]) cost_map[pid]={orders:[],income:0,cost:0,pack_cost:0,tech_fee:0,tax:0,refund:0,name:name_map[pid]||o['商品名称']||o['商品标题']||o['名称']||'',code:code,warehouse:mc_result.s,notif:null,priceErrorCount:0};
     cost_map[pid].income+=income; cost_map[pid].cost+=cost; cost_map[pid].pack_cost+=pack_cost;
     cost_map[pid].tech_fee+=tech_fee; cost_map[pid].tax+=tax; cost_map[pid].refund+=refund; cost_map[pid].orders.push(o);
+    if(income < cost + 2) cost_map[pid].priceErrorCount++;
     if(!cost_map[pid].notif&&NC[code]){ cost_map[pid].notif=NC[code]; if(exportNotifCodes.indexOf(code)<0) exportNotifCodes.push(code); }
   }
   var promo_cost_map_export={};
@@ -488,6 +497,16 @@ function exportCSV(){
   for(var oi2=0;oi2<orphan_promo_export.length;oi2++){ var op2=orphan_promo_export[oi2]; lines.push([es(op2.pid),'无订单','','',0,0,0,op2.promo,0,0,0,0,-op2.promo,'-',''].join(',')); }
     // 导出通知信息行
   lines.push(['','','','','','','','','','','','','','',''],['=== 分析报告摘要 ===','','','','','','','','','','','','','',''],['亏损>20链接: '+loss_rows_export+'个','','','','','','','','','','','','','',''],['有推广无订单: '+orphan_promo_export.length+'个, 合计'+r1(orphan_total_export)+'元','','','','','','','','','','','','','',''],['推广费总计: '+r1(total_promo_export)+'元','','','','','','','','','','','','','',''],['总净利润: '+r1(net_w_orphan)+'元','','','','','','','','','','','','','','']);
+    // 价格错误提醒
+  var priceErrorExport=[];
+  for(var peKey2 in cost_map){
+    var peP2=cost_map[peKey2];
+    if(peP2.priceErrorCount>0 && peP2.orders[0]) priceErrorExport.push({pid:peKey2,name:peP2.orders[0].name,count:peP2.priceErrorCount});
+  }
+  for(var pei2=0;pei2<priceErrorExport.length;pei2++){
+    var pe2=priceErrorExport[pei2];
+    lines.push(['[下架] 商品ID:'+es(pe2.pid)+' '+es(pe2.name)+' 出'+pe2.count+'单 - 该产品价格错误，请注意检查','','','','','','','','','','','','','',''].join(','));
+  }
     // 生成智能通知行
   var notifMsgs=[];
   for(var pid in cost_map){

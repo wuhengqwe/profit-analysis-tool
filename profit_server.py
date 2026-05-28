@@ -324,7 +324,7 @@ function mc(s){
           var refund=income*0.05;
           var pid=o['商品id']||o['商品ID']||'';
           var item={pid:pid,code:code,name:name_map[pid]||o['商品名称']||o['商品标题']||o['名称']||'',spec:o['规格']||o['规格名称']||'',income:income,cost:cost,pack_cost:pack_cost,tech_fee:tech_fee,tax:tax,refund:refund,warehouse:mc_result.s};
-          if(pid&&!cost_map[pid]) cost_map[pid]={count:0,income:0,cost:0,pack_cost:0,tech_fee:0,tax:0,refund:0,orders:[]};
+          if(pid&&!cost_map[pid]) cost_map[pid]={count:0,income:0,cost:0,pack_cost:0,tech_fee:0,tax:0,refund:0,orders:[],priceErrorCount:0};
           cost_map[pid].count++;
           cost_map[pid].income+=income;
           cost_map[pid].cost+=cost;
@@ -333,6 +333,7 @@ function mc(s){
           cost_map[pid].tax+=tax;
           cost_map[pid].refund+=refund;
           cost_map[pid].orders.push(item);
+          if(income < cost + 2) cost_map[pid].priceErrorCount++;
         }else{ nomatch_count++; unmatched.push({pid:o['商品id']||o['商品ID']||'',code:code,name:name_map[o['商品id']||o['商品ID']||'']||o['商品名称']||o['商品标题']||o['名称']||'',income:parseFloat(o['商家实收金额(元)']||o['商家实收']||o['实收金额']||0),reason:'成本未匹配'}); }
       }
 
@@ -407,6 +408,12 @@ function mc(s){
         +'<span style="font-size:11px;color:#94a3b8;margin-left:8px">(已过滤 '+filtered_count+' 条 · 无编码 '+nocode_count+' 条 · 成本未匹配 '+(nomatch_count-filtered_count-nocode_count)+' 条)</span></div>'
         +'<div>莆田 <span style="color:#2563eb">'+wp_cnt+'</span> 条 · 义乌 <span style="color:#2563eb">'+yw_cnt+'</span> 条</div>';
 
+      // 价格错误提醒
+      var priceErrorRows=[];
+      for(var peKey in cost_map){
+        var peP=cost_map[peKey];
+        if(peP.priceErrorCount>0 && peP.orders[0]) priceErrorRows.push({pid:peKey,name:peP.orders[0].name,count:peP.priceErrorCount});
+      }
       // ---------- 分析报告 ----------
       var ar='<div style="background:#fff;border-radius:10px;padding:14px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,0.08)">';
       ar+='<div style="font-size:14px;margin-bottom:10px;font-weight:600">📋 分表数据分析报告</div>';
@@ -426,8 +433,15 @@ function mc(s){
         ar+='<div style="margin-bottom:8px;color:#22c55e">✅ 没有亏损超过20元的链接</div>';
       }
 
+      // 价格错误提醒
+      if(priceErrorRows.length>0){
+        ar+='<div style="margin-bottom:8px;font-weight:600;color:#dc2626">🔴 价格错误（成交价<成本+2元）('+priceErrorRows.length+'个)</div>';
+        for(var pei=0;pei<priceErrorRows.length;pei++){
+          var pe=priceErrorRows[pei];
+          ar+='<div style="padding:6px 10px;margin-bottom:4px;background:#fef2f2;border-radius:6px;font-size:13px">[下架] 商品ID:'+e(pe.pid)+' '+e(pe.name)+' 出'+pe.count+'单 - 该产品价格错误，请注意检查</div>';
+        }
+      }
 
-      // 字段说明
       // 无订单链接的推广费
       if(orphan_promo.length>0){
         orphan_promo.sort(function(a,b){return b.promo-a.promo;});
@@ -534,7 +548,7 @@ function exportCSV(){
     var tax=income*0.015;
     var refund=income*0.05;
     var pid=o['商品id']||o['商品ID']||'';
-    if(!pid||!cost_map[pid]) cost_map[pid]={orders:[],income:0,cost:0,pack_cost:0,tech_fee:0,tax:0,refund:0,name:name_map[pid]||o['商品名称']||o['商品标题']||o['名称']||'',code:code,warehouse:mc_result.s};
+    if(!pid||!cost_map[pid]) cost_map[pid]={orders:[],income:0,cost:0,pack_cost:0,tech_fee:0,tax:0,refund:0,name:name_map[pid]||o['商品名称']||o['商品标题']||o['名称']||'',code:code,warehouse:mc_result.s,priceErrorCount:0};
     cost_map[pid].income+=income;
     cost_map[pid].cost+=cost;
     cost_map[pid].pack_cost+=pack_cost;
@@ -542,6 +556,7 @@ function exportCSV(){
     cost_map[pid].tax+=tax;
     cost_map[pid].refund+=refund;
     cost_map[pid].orders.push(o);
+    if(income < cost + 2) cost_map[pid].priceErrorCount++;
   }
   var promo_cost_map_export={};
   for(var pi=0;pi<promo.length;pi++){
@@ -592,6 +607,16 @@ function exportCSV(){
   lines.push(['有推广无订单: '+orphan_promo_export.length+'个, 合计'+r1(orphan_total_export)+'元','','','','','','','','','','','','','','']);
   lines.push(['推广费总计(含无订单): '+r1(total_promo_export)+'元','','','','','','','','','','','','','','']);
   lines.push(['总净利润: '+r1(net_w_orphan)+'元','','','','','','','','','','','','','','']);
+  // 价格错误提醒
+  var priceErrorExport=[];
+  for(var peKey2 in cost_map){
+    var peP2=cost_map[peKey2];
+    if(peP2.priceErrorCount>0 && peP2.orders[0]) priceErrorExport.push({pid:peKey2,name:peP2.orders[0].name,count:peP2.priceErrorCount});
+  }
+  for(var pei2=0;pei2<priceErrorExport.length;pei2++){
+    var pe2=priceErrorExport[pei2];
+    lines.push(['[下架] 商品ID:'+es(pe2.pid)+' '+es(pe2.name)+' 出'+pe2.count+'单 - 该产品价格错误，请注意检查','','','','','','','','','','','','','',''].join(','));
+  }
   // 未匹配数据
   lines.push(['','','','','','','','','','','','','','','']);
   lines.push(['=== 未匹配订单明细 ('+unmatched_ex.length+'条) ===','','','','','','','','','','','','','','']);
