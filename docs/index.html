@@ -270,7 +270,7 @@ function analyze(){
         var mc_result=mc(code);
         if(mc_result){
           match_count++;
-          var cost=mc_result.c*mc_result.m;
+          var rowQty=parseInt(o['商品数量']||o['购买数量']||o['数量']||1);var cost=mc_result.c*mc_result.m*rowQty;
           var income=parseFloat(o['商家实收金额(元)']||o['商家实收']||o['实收金额']||0);
           var pack_cost=cost*0.05;
           var tech_fee=income*0.006;
@@ -468,7 +468,7 @@ function exportCSV(){
     if(is_skip){ unmatched_ex.push({pid:pid_ex,code:code,name:name_ex,income:income_ex,reason:'订单状态('+status+')'}); continue; }
     var mc_result=mc(code);
     if(!mc_result){ unmatched_ex.push({pid:pid_ex,code:code,name:name_ex,income:income_ex,reason:'成本未匹配'}); continue; }
-    var income=income_ex; var cost=mc_result.c*mc_result.m; var pack_cost=cost*0.05; var tech_fee=income*0.006; var tax=income*0.015; var refund=income*0.05;
+    var income=income_ex; var rowQty=parseInt(o['商品数量']||o['购买数量']||o['数量']||1);var cost=mc_result.c*mc_result.m*rowQty; var pack_cost=cost*0.05; var tech_fee=income*0.006; var tax=income*0.015; var refund=income*0.05;
     var pid=o['商品id']||o['商品ID']||'';
     if(!pid||!cost_map[pid]) cost_map[pid]={orders:[],income:0,cost:0,pack_cost:0,tech_fee:0,tax:0,refund:0,name:name_map[pid]||o['商品名称']||o['商品标题']||o['名称']||'',code:code,warehouse:mc_result.s,notif:null,priceErrorCount:0};
     cost_map[pid].income+=income; cost_map[pid].cost+=cost; cost_map[pid].pack_cost+=pack_cost;

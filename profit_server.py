@@ -316,7 +316,7 @@ function mc(s){
         var mc_result=mc(code);
         if(mc_result){
           match_count++;
-          var cost=mc_result.c*mc_result.m;
+          var rowQty=parseInt(o['商品数量']||o['购买数量']||o['数量']||1);var cost=mc_result.c*mc_result.m*rowQty;
           var income=parseFloat(o['商家实收金额(元)']||o['商家实收']||o['实收金额']||0);
           var pack_cost=cost*0.05;
           var tech_fee=income*0.006;
@@ -542,7 +542,7 @@ function exportCSV(){
     var mc_result=mc(code);
     if(!mc_result){ unmatched_ex.push({pid:pid_ex,code:code,name:name_ex,income:income_ex,reason:'成本未匹配'}); continue; }
     var income=income_ex;
-    var cost=mc_result.c*mc_result.m;
+    var rowQty=parseInt(o['商品数量']||o['购买数量']||o['数量']||1);var cost=mc_result.c*mc_result.m*rowQty;
     var pack_cost=cost*0.05;
     var tech_fee=income*0.006;
     var tax=income*0.015;
