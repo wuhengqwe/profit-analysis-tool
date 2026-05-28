@@ -336,6 +336,12 @@ function analyze(){
       document.getElementById('tb').innerHTML=tb;
       document.getElementById('wn').innerHTML='<div style="font-size:14px;margin-bottom:8px;font-weight:600">匹配结果</div><div style="margin-bottom:8px">匹配 <span style="color:#22c55e">'+match_count+'</span> 条 · 未匹配 <span style="color:#ef4444">'+nomatch_count+'</span> 条<span style="font-size:11px;color:#94a3b8;margin-left:8px">(已过滤 '+filtered_count+' 条 · 无编码 '+nocode_count+' 条 · 成本未匹配 '+(nomatch_count-filtered_count-nocode_count)+' 条)</span></div><div>莆田 <span style="color:#2563eb">'+wp_cnt+'</span> 条 · 义乌 <span style="color:#2563eb">'+yw_cnt+'</span> 条</div>';
       // 分析报告
+      // 价格错误提醒（成交价<成本+2元）
+  var priceErrorRows=[];
+  for(var peKey in cost_map){
+    var peP=cost_map[peKey];
+    if(peP.priceErrorCount>0 && peP.orders[0]) priceErrorRows.push({pid:peKey,name:peP.orders[0].name,count:peP.priceErrorCount});
+  }
         // 到货提醒：有通知但订单里未匹配的产品
   var notifUnmatched=[];
   for(var nk in NOTIF){
