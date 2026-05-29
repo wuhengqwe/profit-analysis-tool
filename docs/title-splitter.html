@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>商品标题拆分工具</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f5f5f5;color:#333;padding:20px}
+.container{max-width:800px;margin:0 auto}
+h1{font-size:22px;margin-bottom:6px;color:#1a1a1a}
+.sub{font-size:13px;color:#666;margin-bottom:20px}
+.card{background:#fff;border-radius:10px;padding:20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.upload-zone{border:2px dashed #ddd;border-radius:8px;padding:40px;text-align:center;cursor:pointer;transition:.2s}
+.upload-zone:hover,.upload-zone.dragover{border-color:#2563eb;background:#f0f7ff}
+.upload-zone.done{border-color:#22c55e;background:#f0fdf4}
+.upload-icon{font-size:36px;margin-bottom:10px}
+.upload-text{font-size:14px;color:#666}
+.upload-text b{color:#2563eb}
+.upload-hint{font-size:12px;color:#999;margin-top:6px}
+#uploadInput{display:none}
+.btn{display:inline-block;padding:10px 24px;border:none;border-radius:6px;font-size:14px;cursor:pointer;transition:.2s}
+.btn-primary{background:#2563eb;color:#fff}
+.btn-primary:hover{background:#1d4ed8}
+.btn-primary:disabled{background:#94a3b8;cursor:not-allowed}
+.btn-success{background:#22c55e;color:#fff}
+.btn-success:hover{background:#16a34a}
+.mt16{margin-top:16px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#f8fafc;border:1px solid #e2e8f0;padding:8px 6px;text-align:left;font-weight:600;white-space:nowrap}
+td{border:1px solid #e2e8f0;padding:6px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preview-wrap{max-height:400px;overflow:auto}
+.filename{display:inline-block;margin-top:10px;font-size:13px;color:#2563eb}
+.status{padding:10px;border-radius:6px;margin-top:10px;font-size:13px}
+.status.ok{background:#f0fdf4;color:#166534}
+.status.warn{background:#fef3c7;color:#92400e}
+.status.loading{background:#eff6ff;color:#1e40af}
+.stats{display:flex;gap:16px;margin-top:10px}
+.stat{text-align:center;padding:8px 16px;background:#f8fafc;border-radius:6px}
+.stat-num{font-size:20px;font-weight:700;color:#2563eb}
+.stat-label{font-size:11px;color:#666;margin-top:2px}
+.footer{text-align:center;font-size:12px;color:#999;margin-top:30px}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>📦 商品标题拆分工具</h1>
+  <div class="sub">上传拼多多商品标题修改模板（Excel），自动拆分为「品牌+产品名」和「规格+其他描述」两列</div>
+
+  <div class="card">
+    <div class="upload-zone" id="dropZone">
+      <div class="upload-icon">📁</div>
+      <div class="upload-text">点击或拖拽上传 <b>Excel 文件</b></div>
+      <div class="upload-hint">支持 .xlsx / .xls 格式</div>
+      <span class="filename" id="fileName" style="display:none"></span>
+    </div>
+    <input type="file" id="uploadInput" accept=".xlsx,.xls">
+    <div id="status"></div>
+    <div id="stats" class="stats" style="display:none"></div>
+  </div>
+
+  <div class="card" id="resultCard" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span style="font-size:14px;font-weight:600">拆分预览（前20条）</span>
+      <button class="btn btn-success" id="downloadBtn">⬇ 下载结果</button>
+    </div>
+    <div class="preview-wrap" id="preview"></div>
+  </div>
+
+  <div class="footer">基于正则匹配，无规格商品自动标记「非药」</div>
+</div>
+
+<script>
+const SPEC_RE = /\s(\d+\.?\d*)\s*(?:g|ml|mg|cm|%|片|粒|丸|支|袋|包|颗|贴|瓶|个|盒)(?:[*/xX]\d+\.?\d*\s*(?:g|ml|mg|cm|%|片|粒|丸|支|袋|包|颗|贴|瓶|个|盒))*/;
+
+function splitName(name) {
+  if (!name) return { brand: '', spec: '', isMedicine: true };
+  const s = String(name).trim();
+  const m = SPEC_RE.exec(s);
+  if (m) {
+    return { brand: s.slice(0, m.index).trim(), spec: s.slice(m.index + 1).trim(), isMedicine: true };
+  }
+  return { brand: s, spec: '', isMedicine: false };
+}
+
+function process(data) {
+  const wb = XLSX.read(data, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  if (rows.length < 2) throw new Error('文件没有数据');
+
+  const header = rows[0];
+  // Find columns: 商品ID, 商品名称
+  const idCol = header.findIndex(h => String(h).includes('商品ID'));
+  const nameCol = header.findIndex(h => String(h).includes('商品名称'));
+  if (nameCol < 0) throw new Error('未找到"商品名称"列');
+
+  const outRows = [['商品ID（必填）', '商品名称（原）', '品牌+产品名', '规格+其他描述', '备注']];
+  let ok = 0, no = 0;
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const pid = idCol >= 0 ? row[idCol] : '';
+    const name = nameCol >= 0 ? row[nameCol] : '';
+    if (!name) continue;
+    
+    const result = splitName(name);
+    if (result.isMedicine && result.spec) {
+      outRows.push([pid, name, result.brand, result.spec, '']);
+      ok++;
+    } else {
+      outRows.push([pid, name, result.brand, '', '非药']);
+      no++;
+    }
+  }
+
+  // Create output workbook
+  const outWS = XLSX.utils.aoa_to_sheet(outRows);
+  const colWidths = [
+    {wch:18}, {wch:50}, {wch:25}, {wch:50}, {wch:8}
+  ];
+  outWS['!cols'] = colWidths;
+  const outWB = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(outWB, outWS, 'Sheet0');
+
+  return { outWB, stats: { total: ok + no, ok, no } };
+}
+
+const dropZone = document.getElementById('dropZone');
+const uploadInput = document.getElementById('uploadInput');
+const fileName = document.getElementById('fileName');
+const status = document.getElementById('status');
+const statsDiv = document.getElementById('stats');
+const resultCard = document.getElementById('resultCard');
+const preview = document.getElementById('preview');
+const downloadBtn = document.getElementById('downloadBtn');
+
+let resultWB = null;
+
+function handleFile(file) {
+  if (!file) return;
+  fileName.textContent = '📄 ' + file.name;
+  fileName.style.display = 'inline';
+  dropZone.classList.add('done');
+  status.className = 'status loading';
+  status.textContent = '⏳ 解析中...';
+  status.style.display = 'block';
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const result = process(new Uint8Array(e.target.result));
+      resultWB = result.outWB;
+      const s = result.stats;
+
+      status.className = 'status ok';
+      status.textContent = '✅ 处理完成！共 ' + s.total + ' 条';
+
+      statsDiv.style.display = 'flex';
+      statsDiv.innerHTML = 
+        '<div class="stat"><div class="stat-num">' + s.total + '</div><div class="stat-label">总条数</div></div>' +
+        '<div class="stat"><div class="stat-num" style="color:#22c55e">' + s.ok + '</div><div class="stat-label">拆分成功</div></div>' +
+        '<div class="stat"><div class="stat-num" style="color:#f59e0b">' + s.no + '</div><div class="stat-label">标记非药</div></div>';
+
+      // Preview table
+      const outRows = XLSX.utils.sheet_to_json(result.outWB.Sheets['Sheet0'], { header: 1, defval: '' });
+      let html = '<table><thead><tr>';
+      outRows[0].forEach(h => { html += '<th>' + h + '</th>'; });
+      html += '</tr></thead><tbody>';
+      const maxPreview = Math.min(20, outRows.length - 1);
+      for (let i = 1; i <= maxPreview; i++) {
+        html += '<tr>';
+        outRows[i].forEach((v, ci) => {
+          const color = ci === 4 && v === '非药' ? ' style="color:#f59e0b;font-weight:600"' : '';
+          html += '<td' + color + '>' + (v || '') + '</td>';
+        });
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+      preview.innerHTML = html;
+      resultCard.style.display = 'block';
+
+    } catch (err) {
+      status.className = 'status warn';
+      status.textContent = '❌ ' + err.message;
+      dropZone.classList.remove('done');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+dropZone.addEventListener('click', () => uploadInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+uploadInput.addEventListener('change', () => {
+  if (uploadInput.files.length) handleFile(uploadInput.files[0]);
+});
+
+downloadBtn.addEventListener('click', () => {
+  if (!resultWB) return;
+  const outData = XLSX.write(resultWB, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([outData], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '商品标题_已拆分.xlsx';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+</script>
+</body>
+</html>
