@@ -373,7 +373,6 @@ function analyze(){
       nuHtml+='</div>';
     }
     nuHtml+='</div>';
-    ar=nuHtml;
   }
 
   var ar='<div style="background:#fff;border-radius:10px;padding:14px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,0.08)">';
@@ -437,6 +436,7 @@ function analyze(){
         ar+='</table></div>';
       }
       ar+='</div>';
+      if(typeof nuHtml !== 'undefined' && nuHtml) ar=nuHtml+ar;
       document.getElementById('ar').innerHTML=ar;
       ra.style.display='block'; ld.style.display='none';
     }catch(ex){
