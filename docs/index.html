@@ -353,29 +353,17 @@ function analyze(){
     var peP=cost_map[peKey];
     if(peP.priceErrorCount>0 && peP.orders[0]) priceErrorRows.push({pid:peKey,name:peP.orders[0].name,count:peP.priceErrorCount});
   }
-        // 到货提醒：有通知但订单里未匹配的产品
+        // 到货提醒：所有到货通知（不管订单是否匹配）
   var notifUnmatched=[];
   for(var nk in NOTIF){
-    var foundInOrder=false;
-    for(var key2 in cost_map){
-      var cm=cost_map[key2];
-      if(cm.notif && cm.notif===NOTIF[nk]){ foundInOrder=true; break; }
-      for(var oi3=0;oi3<cm.orders.length;oi3++){
-        if(cm.orders[oi3].code===nk || cm.orders[oi3].code.replace(/^0+/,'')===nk.replace(/^0+/,'')){ foundInOrder=true; break; }
-      }
-      if(foundInOrder) break;
+    var nd=NOTIF[nk];
+    if(nd.note && nd.note.indexOf('到货')===0){
+      notifUnmatched.push({code:nk,note:nd.note,date:nd.date});
     }
-    if(!foundInOrder){
-      for(var oi2=0;oi2<orders.length;oi2++){
-        var oc=String(orders[oi2]['商家编码-规格维度']||orders[oi2]['规格维度']||'').trim();
-        if(oc && (oc===nk || oc.replace(/^0+/,'')===nk.replace(/^0+/,''))){ foundInOrder=true; break; }
-      }
-    }
-    if(!foundInOrder) notifUnmatched.push({code:nk,note:NOTIF[nk].note,date:NOTIF[nk].date});
   }
   if(notifUnmatched.length>0){
     var nuHtml='<div style="background:#fff;border-radius:10px;padding:14px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,0.08)">';
-    nuHtml+='<div style="font-size:14px;margin-bottom:10px;font-weight:600;color:#2563eb">🆕 到货提醒（缺货未匹配）</div>';
+    nuHtml+='<div style="font-size:14px;margin-bottom:10px;font-weight:600;color:#2563eb">🆕 到货提醒</div>';
     for(var ui3=0;ui3<notifUnmatched.length;ui3++){
       var nu=notifUnmatched[ui3];
       nuHtml+='<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;margin-bottom:4px;background:#f0f9ff;border-radius:6px;font-size:13px">';
