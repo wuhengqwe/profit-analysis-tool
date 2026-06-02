@@ -231,13 +231,32 @@ function sm(s){
 }
 
 function mc(s){
+  // 1. 先完整匹配原始编码（成本表存的是完整编码如TRT-LWDHW-120*1盒）
+  if(PM[s]!==undefined) return {c:PM[s],m:1,s:'莆田'};
+  var s2=s.replace(/^0+/,'');
+  if(YM[s2]!==undefined) return {c:YM[s2],m:1,s:'义乌'};
+  if(YM[s]!==undefined) return {c:YM[s],m:1,s:'义乌'};
+  
+  // 2. sm()拆分后匹配基码（如TRT-LWDHW-120*3盒 → 基码TRT-LWDHW-120 + 数量3）
   var p=sm(s),b=p[0],m=p[1];
-  // 先尝试完整匹配（含+号的组合商品）
+  
+  // 2a. 基码匹配
   if(PM[b]!==undefined) return {c:PM[b],m:m,s:'莆田'};
   var b2=b.replace(/^0+/,'');
   if(YM[b2]!==undefined) return {c:YM[b2],m:m,s:'义乌'};
   if(YM[b]!==undefined) return {c:YM[b],m:m,s:'义乌'};
-  // 完整匹配不到，再按+拆分分别匹配
+  
+  // 2b. 基码没匹配到，兜底：基码+*1盒/*1包/*1 等（成本表存的是*1盒这种规格标识）
+  var oneUnits=['*1盒','*1包','*1袋','*1片','*1支','*1瓶','*1条','*1箱','*1'];
+  for(var vi=0;vi<oneUnits.length;vi++){
+    var v=b+oneUnits[vi];
+    if(PM[v]!==undefined) return {c:PM[v],m:m,s:'莆田'};
+    var v2=v.replace(/^0+/,'');
+    if(YM[v2]!==undefined) return {c:YM[v2],m:m,s:'义乌'};
+    if(YM[v]!==undefined) return {c:YM[v],m:m,s:'义乌'};
+  }
+  
+  // 3. +拆分匹配组合商品
   if(b.indexOf('+')>=0){
     var parts=b.split('+'), total=0, ok=true;
     for(var i=0;i<parts.length;i++){
