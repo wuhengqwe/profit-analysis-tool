@@ -224,6 +224,9 @@ function sm(s){
   if(!s) return ['',1];
   var m=s.match(/[\*Xx](\d+)$/);
   if(m) return [s.slice(0,m.index).trim(),parseInt(m[1])];
+  // *3盒/*3包/等带单位后缀
+  var m2=s.match(/[\*Xx](\d+)[盒包袋片支瓶条箱]?$/);
+  if(m2) return [s.slice(0,m2.index).trim(),parseInt(m2[1])];
   return [s,1];
 }
 
@@ -240,6 +243,7 @@ function mc(s){
     for(var i=0;i<parts.length;i++){
       var part=parts[i].trim();
       var xm=part.match(/[\*Xx](\d+)$/);
+      if(!xm) xm=part.match(/[\*Xx](\d+)[盒包袋片支瓶条箱]?$/);
       var code=xm?part.slice(0,xm.index).trim():part;
       var mult=xm?parseInt(xm[1]):1;
       if(PM[code]!==undefined) total+=PM[code]*mult;
