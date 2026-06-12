@@ -105,17 +105,7 @@ fetch('cost_data.json').then(function(r){return r.json();}).then(function(d){
   // 建立通知编码查找表
   NC={};
   for(var nk in NOTIF){ NC[nk]=NOTIF[nk]; var nk2=nk.replace(/^0+/,''); if(nk2!==nk) NC[nk2]=NOTIF[nk]; }
-  var ciText='<span class="b">✅</span><span>成本已加载：莆田 '+PUTIAN.length+' 项 · 义乌 '+YIWU.length+' 项</span>';
-  var notifCount=Object.keys(NOTIF).length;
-  if(notifCount>0){
-    var notifList='';
-    for(var nk in NOTIF){
-      var nd=NOTIF[nk];
-      notifList+='<div style="font-size:11px;padding:2px 0">⚠️ '+nk+(nd.date?' ['+nd.date+']':'')+': '+nd.note+'</div>';
-    }
-    ciText+='<div style="margin-top:6px;padding:6px 10px;background:#fef3c7;border-radius:4px;color:#92400e">'+notifList+'</div>';
-  }
-  document.getElementById('ci').innerHTML=ciText;
+  document.getElementById('ci').innerHTML='<span class="b">✅</span><span>成本已加载：莆田 '+PUTIAN.length+' 项 · 义乌 '+YIWU.length+' 项</span>';
   checkReady();
 }).catch(function(e){
   document.getElementById('ci').innerHTML='<span class="b" style="background:#ef4444">❌</span><span>成本获取失败：'+e.message+'</span>';
