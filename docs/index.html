@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>链接盈亏分析工具</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
@@ -97,8 +100,8 @@ tr.l td{background:#fffbeb}
 <script>
 var PUTIAN=[], YIWU=[], PM={}, YM={}, NOTIF={}, NC={}, orders=null, promo=null, QTY_COL='';
 
-// 加载成本数据
-fetch('cost_data.json').then(function(r){return r.json();}).then(function(d){
+// 加载成本数据（每天自动刷新，避免浏览器缓存旧版本）
+fetch('cost_data.json?v=' + new Date().toISOString().slice(0,10)).then(function(r){return r.json();}).then(function(d){
   PUTIAN=d.p||[]; YIWU=d.y||[]; NOTIF=d.n||{};
   PUTIAN.forEach(function(i){PM[i[0]]=i[1];});
   YIWU.forEach(function(i){YM[i[0]]=i[1];});
