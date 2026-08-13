@@ -100,6 +100,12 @@ tr.l td{background:#fffbeb}
 <script>
 var PUTIAN=[], YIWU=[], PM={}, YM={}, NOTIF={}, NC={}, orders=null, promo=null, QTY_COL='';
 
+// ===== 特殊编码对应关系：订单编码 -> 成本表编码（只用于匹配，不改成本表）=====
+// 需要新增时按同样的格式加一行即可，例如 'TRT-LWDHW':'TRT-LWDHW-120*1盒'
+var ALIAS={
+  'RH-LWDHW':'RH-LWDHW-200*1盒'
+};
+
 // 加载成本数据（每天自动刷新，避免浏览器缓存旧版本）
 fetch('cost_data.json?v=' + new Date().toISOString().slice(0,10)).then(function(r){return r.json();}).then(function(d){
   PUTIAN=d.p||[]; YIWU=d.y||[]; NOTIF=d.n||{};
@@ -238,6 +244,15 @@ function mc(s){
   var b2=b.replace(/^0+/,'');
   if(YM[b2]!==undefined) return {c:YM[b2],m:m,s:'义乌'};
   if(YM[b]!==undefined) return {c:YM[b],m:m,s:'义乌'};
+
+  // 2a2. 特殊编码对应关系（如 RH-LWDHW -> RH-LWDHW-200*1盒）
+  if(ALIAS[b]!==undefined){
+    var av=ALIAS[b];
+    if(PM[av]!==undefined) return {c:PM[av],m:m,s:'莆田'};
+    var av2=av.replace(/^0+/,'');
+    if(YM[av2]!==undefined) return {c:YM[av2],m:m,s:'义乌'};
+    if(YM[av]!==undefined) return {c:YM[av],m:m,s:'义乌'};
+  }
   
   // 2b. 基码没匹配到，兜底：基码+*1盒/*1包/*1 等（成本表存的是*1盒这种规格标识）
   var oneUnits=['*1盒','*1包','*1袋','*1片','*1支','*1瓶','*1条','*1箱','*1'];
@@ -263,6 +278,16 @@ function mc(s){
         var b2=code.replace(/^0+/,'');
         if(YM[b2]!==undefined) total+=YM[b2]*mult;
         else if(YM[code]!==undefined) total+=YM[code]*mult;
+        else if(ALIAS[code]!==undefined){
+          var ac=ALIAS[code];
+          if(PM[ac]!==undefined) total+=PM[ac]*mult;
+          else{
+            var ac2=ac.replace(/^0+/,'');
+            if(YM[ac2]!==undefined) total+=YM[ac2]*mult;
+            else if(YM[ac]!==undefined) total+=YM[ac]*mult;
+            else{ ok=false; break; }
+          }
+        }
         else{ ok=false; break; }
       }
     }
