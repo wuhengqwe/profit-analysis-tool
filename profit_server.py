@@ -1,57 +1,69 @@
 """
 本地服务模式 - 服务端解析所有文件,无需浏览器 CDN
+成本数据源：腾讯文档「产品成本表」导出的 Excel（与网页版 cost_data.json 保持一致）
 """
-import requests, json, os, webbrowser, csv, io, re, traceback
+import json, os, webbrowser, csv, io, re, traceback
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import xlrd
 import openpyxl
 
-# === 密钥从同级 config.json 读取，不硬编码 ===
-_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
-if not os.path.exists(_CONFIG_PATH):
-    print(f"\u2757 缺少配置文件: {_CONFIG_PATH}")
-    print("   请复制 config.template.json 为 config.json，填入密钥后重试")
-    exit(1)
-with open(_CONFIG_PATH, encoding="utf-8") as _f:
-    _cfg = json.load(_f)
-APP_ID = _cfg["app_id"]
-APP_SECRET = _cfg["app_secret"]
-COST_SHEET_TOKEN = _cfg["cost_sheet_token"]
 PORT = 18632
 
-# ========== 获取飞书成本数据 ==========
+# === 成本数据来源：腾讯文档「产品成本表」导出的 Excel ===
+# 导出方法：打开 https://docs.qq.com/sheet/DUXNZWER5SE1pR29Q
+#   → 左上角菜单 → 导出为 → 本地Excel表格(.xlsx)
+#   → 保存为「产品成本表.xlsx」，与本脚本放在同一目录
+COST_XLSX_PATH = os.path.join(os.path.dirname(__file__), "产品成本表.xlsx")
+if not os.path.exists(COST_XLSX_PATH):
+    print(f"\u2757 缺少成本表文件: {COST_XLSX_PATH}")
+    print("   请打开腾讯文档 https://docs.qq.com/sheet/DUXNZWER5SE1pR29Q")
+    print("   导出为 本地Excel表格(.xlsx)，命名为 产品成本表.xlsx 放在本脚本同目录")
+    exit(1)
+
+# ========== 从腾讯文档导出的 Excel 读取成本数据 ==========
+def _num(v):
+    try:
+        f = float(str(v).strip())
+        return f if f > 0 else None
+    except Exception:
+        return None
+
 def fetch_cost():
-    r = requests.post("https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
-        json={"app_id": APP_ID, "app_secret": APP_SECRET})
-    token = r.json().get("tenant_access_token")
-    headers = {"Authorization": f"Bearer {token}"}
+    import datetime
+    wb = openpyxl.load_workbook(COST_XLSX_PATH, read_only=True, data_only=True)
 
-    r = requests.get(f"https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{COST_SHEET_TOKEN}/values/28e057!A1:CV3550", headers=headers)
-    vals = r.json().get("data", {}).get("valueRange", {}).get("values", [])
+    # 莆田成本表：A列=主商家编码，第96列(0基95)=最新历史成本价
     putian = []
-    for row in vals:
+    for row in wb["莆田成本表"].iter_rows(min_row=2, values_only=True):
         if len(row) < 96: continue
-        code = str(row[0]).strip() if row[0] else ''
-        cost_str = str(row[95]).strip() if row[95] else ''
-        if code and cost_str:
-            try:
-                cost = float(cost_str)
-                if cost > 0: putian.append([code, cost])
-            except: pass
+        code = str(row[0]).strip() if row[0] is not None else ''
+        cost = _num(row[95])
+        if code and code != '0' and cost:
+            putian.append([code, cost])
 
-    r = requests.get(f"https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{COST_SHEET_TOKEN}/values/dOqmQ8!A1:I650", headers=headers)
-    vals = r.json().get("data", {}).get("valueRange", {}).get("values", [])
+    # 义乌小伟成本表：E列=商品代码，G列=平均值
     yiwu = []
-    for row in vals[1:]:
-        code = str(row[4]).strip() if len(row) > 4 and row[4] else ''
-        avg = str(row[6]).strip() if len(row) > 6 and row[6] else ''
-        if code and avg:
-            try:
-                cost = float(avg)
-                if cost > 0: yiwu.append([code, cost])
-            except: pass
-    return {"p": putian, "y": yiwu}
+    for row in wb["义乌小伟成本表"].iter_rows(min_row=2, values_only=True):
+        code = str(row[4]).strip() if len(row) > 4 and row[4] is not None else ''
+        cost = _num(row[6]) if len(row) > 6 else None
+        if code and code != '0' and cost:
+            yiwu.append([code, cost])
+
+    # 产品通知提醒：日期/编码/备注/补充说明
+    notif = {}
+    if "产品通知提醒" in wb.sheetnames:
+        for row in wb["产品通知提醒"].iter_rows(min_row=2, values_only=True):
+            if len(row) < 3 or not row[1]: continue
+            code = str(row[1]).strip()
+            note = str(row[2]).strip() if row[2] else ''
+            extra = str(row[3]).strip() if len(row) > 3 and row[3] else ''
+            dt = row[0]
+            dstr = dt.strftime('%Y/%m/%d') if isinstance(dt, datetime.datetime) \
+                else str(dt).strip().split(' ')[0].replace('-', '/')
+            notif[code] = {"note": f"{note}（{extra}）", "date": dstr}
+
+    return {"p": putian, "y": yiwu, "n": notif}
 
 # ========== 通用文件解析器（自动识别 CSV / XLS / XLSX）==========
 def parse_any_file(file_data):
