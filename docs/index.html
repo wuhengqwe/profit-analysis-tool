@@ -264,35 +264,17 @@ function mc(s){
     if(YM[v]!==undefined) return {c:YM[v],m:m,s:'义乌'};
   }
   
-  // 3. +拆分匹配组合商品
-  if(b.indexOf('+')>=0){
-    var parts=b.split('+'), total=0, ok=true;
+  // 3. 从原始组合编码拆分，保留每项完整编码及数量后缀
+  if(s.indexOf('+')>=0){
+    var parts=s.split('+'), total=0;
     for(var i=0;i<parts.length;i++){
       var part=parts[i].trim();
-      var xm=part.match(/[\*Xx](\d+)$/);
-      if(!xm) xm=part.match(/[\*Xx](\d+)[盒包袋片支瓶条箱]?$/);
-      var code=xm?part.slice(0,xm.index).trim():part;
-      var mult=xm?parseInt(xm[1]):1;
-      if(PM[code]!==undefined) total+=PM[code]*mult;
-      else{
-        var b2=code.replace(/^0+/,'');
-        if(YM[b2]!==undefined) total+=YM[b2]*mult;
-        else if(YM[code]!==undefined) total+=YM[code]*mult;
-        else if(ALIAS[code]!==undefined){
-          var ac=ALIAS[code];
-          if(PM[ac]!==undefined) total+=PM[ac]*mult;
-          else{
-            var ac2=ac.replace(/^0+/,'');
-            if(YM[ac2]!==undefined) total+=YM[ac2]*mult;
-            else if(YM[ac]!==undefined) total+=YM[ac]*mult;
-            else{ ok=false; break; }
-          }
-        }
-        else{ ok=false; break; }
-      }
+      if(!part) return null;
+      var match=mc(part);
+      if(!match) return null;
+      total+=match.c*match.m;
     }
-    if(ok) return {c:total, m:1, s:'义乌'};
-    return null;
+    return {c:total,m:1,s:'义乌'};
   }
   return null;
 }
