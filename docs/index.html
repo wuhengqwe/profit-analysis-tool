@@ -229,6 +229,10 @@ function sm(s){
   return [s,1];
 }
 
+function mergeWarehouse(a,b){
+  return !a||a===b ? b : '混合';
+}
+
 function mc(s){
   // 1. 先完整匹配原始编码（成本表存的是完整编码如TRT-LWDHW-120*1盒）
   if(PM[s]!==undefined) return {c:PM[s],m:1,s:'莆田'};
@@ -266,15 +270,16 @@ function mc(s){
   
   // 3. 从原始组合编码拆分，保留每项完整编码及数量后缀
   if(s.indexOf('+')>=0){
-    var parts=s.split('+'), total=0;
+    var parts=s.split('+'), total=0, warehouse='';
     for(var i=0;i<parts.length;i++){
       var part=parts[i].trim();
       if(!part) return null;
       var match=mc(part);
       if(!match) return null;
       total+=match.c*match.m;
+      warehouse=mergeWarehouse(warehouse,match.s);
     }
-    return {c:total,m:1,s:'义乌'};
+    return {c:total,m:1,s:warehouse};
   }
   return null;
 }
@@ -285,6 +290,7 @@ function analyze(){
   setTimeout(function(){
     try{
       var match_count=0, nomatch_count=0, filtered_count=0, nocode_count=0, cost_map={}, unmatched=[];
+      var warehouseCounts={'莆田':0,'义乌':0,'混合':0};
       // 商品名称映射
       var name_map={};
       for(var ni=0;ni<promo.length;ni++){
@@ -304,6 +310,7 @@ function analyze(){
         var mc_result=mc(code);
         if(mc_result){
           match_count++;
+          warehouseCounts[mc_result.s]++;
           var rowQty=parseInt(o[QTY_COL]||1);var cost=mc_result.c*mc_result.m*rowQty;
           var income=parseFloat(o['商家实收金额(元)']||o['商家实收']||o['实收金额']||0);
           var pack_cost=cost*0.05;
@@ -312,7 +319,8 @@ function analyze(){
           var refund=income*0.05;
           var pid=o['商品id']||o['商品ID']||'';
           var item={pid:pid,code:code,name:name_map[pid]||o['商品名称']||o['商品标题']||o['名称']||'',spec:o['规格']||o['规格名称']||'',income:income,cost:cost,pack_cost:pack_cost,tech_fee:tech_fee,tax:tax,refund:refund,warehouse:mc_result.s};
-          if(pid&&!cost_map[pid]) cost_map[pid]={count:0,income:0,cost:0,pack_cost:0,tech_fee:0,tax:0,refund:0,orders:[],notif:null,priceErrorCount:0};
+          if(pid&&!cost_map[pid]) cost_map[pid]={count:0,income:0,cost:0,pack_cost:0,tech_fee:0,tax:0,refund:0,orders:[],warehouse:'',notif:null,priceErrorCount:0};
+          cost_map[pid].warehouse=mergeWarehouse(cost_map[pid].warehouse,mc_result.s);
           cost_map[pid].count++; cost_map[pid].income+=income; cost_map[pid].cost+=cost;
           cost_map[pid].pack_cost+=pack_cost; cost_map[pid].tech_fee+=tech_fee;
           cost_map[pid].tax+=tax; cost_map[pid].refund+=refund; cost_map[pid].orders.push(item);
@@ -358,17 +366,16 @@ function analyze(){
       document.getElementById('cg').innerHTML=cg;
       // 明细表
       var th='<tr><th>序号</th><th>商品ID</th><th>商品名称</th><th>规格</th><th>商家编码</th><th>仓库</th><th>成交额</th><th>货款成本</th><th>包装损耗</th><th>推广费</th><th>技术服务费</th><th>快递费</th><th>税费</th><th>退款损耗</th><th>净利润</th><th>利润率</th><th>订单数</th><th style="width:30px">通知</th></tr>';
-      var tb='', idx=0, wp_cnt=0, yw_cnt=0, loss_rows=[];
+      var tb='', idx=0, loss_rows=[];
       for(var key in cost_map){
-        var p=cost_map[key]; idx++; var is_yi=p.orders[0].warehouse==='义乌';
-        if(is_yi) yw_cnt+=p.count; else wp_cnt+=p.count;
-        var wr=is_yi?'义乌':'莆田'; var oo=p.orders[0]; var np=p.net_profit; var pr=p.income>0?r1(np/p.income*100):0;
+        var p=cost_map[key]; idx++;
+        var wr=p.warehouse; var oo=p.orders[0]; var np=p.net_profit; var pr=p.income>0?r1(np/p.income*100):0;
         if(np<-20) loss_rows.push({pid:key,name:oo.name,net_profit:np,income:p.income,cost:p.cost,count:p.count});
         tb+='<tr'+(np<0?' class="l"':'')+(p.notif?' style="background:#fef3c7"':'')+'><td>'+idx+'</td><td>'+e(key)+'</td><td>'+e(oo.name)+'</td><td>'+e(oo.spec||'')+'</td><td>'+e(oo.code)+'</td><td>'+wr+'</td><td>'+r1(p.income)+'</td><td>'+r1(p.cost)+'</td><td>'+r1(p.pack_cost)+'</td><td>'+r1(p.promo)+'</td><td>'+r1(p.tech_fee)+'</td><td>'+r1(p.delivery)+'</td><td>'+r1(p.tax)+'</td><td>'+r1(p.refund)+'</td><td style="color:'+(np>=0?'#22c55e':'#ef4444')+'">'+r1(np)+'</td><td>'+pr+'%</td><td>'+p.count+'</td><td style="text-align:center">'+(p.notif?'<span style="cursor:help" title="'+e(p.notif.note)+'">⚠️</span>':'')+'</td></tr>';
       }
       document.getElementById('th').innerHTML=th;
       document.getElementById('tb').innerHTML=tb;
-      document.getElementById('wn').innerHTML='<div style="font-size:14px;margin-bottom:8px;font-weight:600">匹配结果</div><div style="margin-bottom:8px">匹配 <span style="color:#22c55e">'+match_count+'</span> 条 · 未匹配 <span style="color:#ef4444">'+nomatch_count+'</span> 条<span style="font-size:11px;color:#94a3b8;margin-left:8px">(已过滤 '+filtered_count+' 条 · 无编码 '+nocode_count+' 条 · 成本未匹配 '+(nomatch_count-filtered_count-nocode_count)+' 条)</span></div><div>莆田 <span style="color:#2563eb">'+wp_cnt+'</span> 条 · 义乌 <span style="color:#2563eb">'+yw_cnt+'</span> 条</div>';
+      document.getElementById('wn').innerHTML='<div style="font-size:14px;margin-bottom:8px;font-weight:600">匹配结果</div><div style="margin-bottom:8px">匹配 <span style="color:#22c55e">'+match_count+'</span> 条 · 未匹配 <span style="color:#ef4444">'+nomatch_count+'</span> 条<span style="font-size:11px;color:#94a3b8;margin-left:8px">(已过滤 '+filtered_count+' 条 · 无编码 '+nocode_count+' 条 · 成本未匹配 '+(nomatch_count-filtered_count-nocode_count)+' 条)</span></div><div>莆田 <span style="color:#2563eb">'+warehouseCounts['莆田']+'</span> 条 · 义乌 <span style="color:#2563eb">'+warehouseCounts['义乌']+'</span> 条 · 混合 <span style="color:#2563eb">'+warehouseCounts['混合']+'</span> 条</div>';
       // 分析报告
       // 价格错误提醒（成交价<成本+2元）
   var priceErrorRows=[];
@@ -492,7 +499,8 @@ function exportCSV(){
     if(!mc_result){ unmatched_ex.push({pid:pid_ex,code:code,name:name_ex,income:income_ex,reason:'成本未匹配'}); continue; }
     var income=income_ex; var rowQty=parseInt(o[QTY_COL]||1);var cost=mc_result.c*mc_result.m*rowQty; var pack_cost=cost*0.05; var tech_fee=income*0.006; var tax=income*0.015; var refund=income*0.05;
     var pid=o['商品id']||o['商品ID']||'';
-    if(!pid||!cost_map[pid]) cost_map[pid]={orders:[],income:0,cost:0,pack_cost:0,tech_fee:0,tax:0,refund:0,name:name_map[pid]||o['商品名称']||o['商品标题']||o['名称']||'',code:code,warehouse:mc_result.s,notif:null,priceErrorCount:0};
+    if(!pid||!cost_map[pid]) cost_map[pid]={orders:[],income:0,cost:0,pack_cost:0,tech_fee:0,tax:0,refund:0,name:name_map[pid]||o['商品名称']||o['商品标题']||o['名称']||'',code:code,warehouse:'',notif:null,priceErrorCount:0};
+    cost_map[pid].warehouse=mergeWarehouse(cost_map[pid].warehouse,mc_result.s);
     cost_map[pid].income+=income; cost_map[pid].cost+=cost; cost_map[pid].pack_cost+=pack_cost;
     cost_map[pid].tech_fee+=tech_fee; cost_map[pid].tax+=tax; cost_map[pid].refund+=refund; cost_map[pid].orders.push(o);
     if(income < cost + 2) cost_map[pid].priceErrorCount++;
