@@ -233,6 +233,25 @@ function mergeWarehouse(a,b){
   return !a||a===b ? b : '混合';
 }
 
+function warehouseCostParts(match) {
+  return match.costByWarehouse || {[match.s]: Number(match.c) * Number(match.m)};
+}
+
+function calculateWarehouseTax(income, order, match) {
+  var source=String(order['发货仓库']||order['订单仓库']||order['仓库']||order['发货仓']||'');
+  var fromPutian=source.indexOf('莆田')>=0, fromYiwu=source.indexOf('义乌')>=0;
+  if(fromPutian!==fromYiwu) return income*(fromPutian?0.015:0.05);
+  if(income===0) return 0;
+  var costs=warehouseCostParts(match);
+  var hasPutian=Object.prototype.hasOwnProperty.call(costs,'莆田');
+  var hasYiwu=Object.prototype.hasOwnProperty.call(costs,'义乌');
+  if(hasPutian!==hasYiwu) return income*(hasPutian?0.015:0.05);
+  var costTotal=(costs['莆田']||0)+(costs['义乌']||0);
+  if(costTotal<=0) return null;
+  var putianIncome=income*costs['莆田']/costTotal;
+  return putianIncome*0.015+(income-putianIncome)*0.05;
+}
+
 function mc(s){
   // 1. 先完整匹配原始编码（成本表存的是完整编码如TRT-LWDHW-120*1盒）
   if(PM[s]!==undefined) return {c:PM[s],m:1,s:'莆田'};
@@ -270,7 +289,7 @@ function mc(s){
   
   // 3. 从原始组合编码拆分，保留每项完整编码及数量后缀
   if(s.indexOf('+')>=0){
-    var parts=s.split('+'), total=0, warehouse='';
+    var parts=s.split('+'), total=0, warehouse='', costByWarehouse={};
     for(var i=0;i<parts.length;i++){
       var part=parts[i].trim();
       if(!part) return null;
@@ -278,8 +297,12 @@ function mc(s){
       if(!match) return null;
       total+=match.c*match.m;
       warehouse=mergeWarehouse(warehouse,match.s);
+      var partCosts=warehouseCostParts(match);
+      Object.keys(partCosts).forEach(function(name){
+        costByWarehouse[name]=(costByWarehouse[name]||0)+partCosts[name];
+      });
     }
-    return {c:total,m:1,s:warehouse};
+    return {c:total,m:1,s:warehouse,costByWarehouse:costByWarehouse};
   }
   return null;
 }
@@ -315,7 +338,12 @@ function analyze(){
           var income=parseFloat(o['商家实收金额(元)']||o['商家实收']||o['实收金额']||0);
           var pack_cost=cost*0.05;
           var tech_fee=income*0.006;
-          var tax=income*0.015;
+          var tax=calculateWarehouseTax(income,o,mc_result);
+          if(tax===null){
+            nomatch_count++;
+            unmatched.push({pid:o['商品id']||o['商品ID']||'',code:code,name:o['商品名称']||'',income:income,reason:'计税仓待核对'});
+            continue;
+          }
           var refund=income*0.05;
           var pid=o['商品id']||o['商品ID']||'';
           var item={pid:pid,code:code,name:name_map[pid]||o['商品名称']||o['商品标题']||o['名称']||'',spec:o['规格']||o['规格名称']||'',income:income,cost:cost,pack_cost:pack_cost,tech_fee:tech_fee,tax:tax,refund:refund,warehouse:mc_result.s};
@@ -362,7 +390,7 @@ function analyze(){
       var rate_total=total_income>0?Math.round(net_total/total_income*1000)/10:0;
       // 汇总
       st('sc','成交额 '+r1(total_income)+' 元 · 成本 '+r1(total_cost)+' 元 · 推广费 '+r1(total_promo)+' 元 · 净利润 '+r1(net_total)+' 元 ('+rate_total+'%)','#333');
-      var cg='<tr><td>成交额</td><td>'+r1(total_income)+'</td></tr><tr><td>货款成本</td><td>-'+r1(total_cost)+'</td></tr><tr><td>包装损耗(5%)</td><td>-'+r1(total_pack)+'</td></tr><tr><td>推广费</td><td>-'+r1(total_promo)+'</td></tr><tr><td>技术服务费(0.6%)</td><td>-'+r1(total_tech)+'</td></tr><tr><td>快递费</td><td>-'+r1(total_delivery)+' ('+Math.round(total_delivery/2.5)+'单×2.5)</td></tr><tr><td>税费(1.5%)</td><td>-'+r1(total_tax)+'</td></tr><tr><td>退款损耗(5%)</td><td>-'+r1(total_refund)+'</td></tr><tr style="font-weight:700;color:'+(net_total>=0?'#22c55e':'#ef4444')+'"><td>净利润</td><td>'+r1(net_total)+'</td></tr><tr><td>利润率</td><td>'+rate_total+'%</td></tr>';
+      var cg='<tr><td>成交额</td><td>'+r1(total_income)+'</td></tr><tr><td>货款成本</td><td>-'+r1(total_cost)+'</td></tr><tr><td>包装损耗(5%)</td><td>-'+r1(total_pack)+'</td></tr><tr><td>推广费</td><td>-'+r1(total_promo)+'</td></tr><tr><td>技术服务费(0.6%)</td><td>-'+r1(total_tech)+'</td></tr><tr><td>快递费</td><td>-'+r1(total_delivery)+' ('+Math.round(total_delivery/2.5)+'单×2.5)</td></tr><tr><td>税费（莆田 1.5% / 义乌 5%）</td><td>-'+r1(total_tax)+'</td></tr><tr><td>退款损耗(5%)</td><td>-'+r1(total_refund)+'</td></tr><tr style="font-weight:700;color:'+(net_total>=0?'#22c55e':'#ef4444')+'"><td>净利润</td><td>'+r1(net_total)+'</td></tr><tr><td>利润率</td><td>'+rate_total+'%</td></tr>';
       document.getElementById('cg').innerHTML=cg;
       // 明细表
       var th='<tr><th>序号</th><th>商品ID</th><th>商品名称</th><th>规格</th><th>商家编码</th><th>仓库</th><th>成交额</th><th>货款成本</th><th>包装损耗</th><th>推广费</th><th>技术服务费</th><th>快递费</th><th>税费</th><th>退款损耗</th><th>净利润</th><th>利润率</th><th>订单数</th><th style="width:30px">通知</th></tr>';
@@ -438,7 +466,7 @@ function analyze(){
       // 字段说明
       ar+='<div style="font-size:13px;margin-bottom:8px;font-weight:600">📖 字段说明</div>';
       ar+='<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:12px">';
-      ar+='<tr><th>字段</th><th>说明</th></tr><tr><td>成交额</td><td>订单中商家实收金额(元)之和</td></tr><tr><td>货款成本</td><td>按商家编码匹配莆田/义乌成本表</td></tr><tr><td>包装损耗</td><td>货款成本×5%</td></tr><tr><td>推广费</td><td>推广报表各商品ID的总花费(元)之和（跳过合计行），含无订单链接</td></tr><tr><td>技术服务费</td><td>成交额×0.6%</td></tr><tr><td>快递费</td><td>订单数×2.5元/单</td></tr><tr><td>税费</td><td>成交额×1.5%</td></tr><tr><td>退款损耗</td><td>成交额×5%（预估）</td></tr><tr><td>净利润</td><td>成交额-货款成本-包装损耗-推广费-技术服务费-快递费-税费-退款损耗</td></tr></table>';
+      ar+='<tr><th>字段</th><th>说明</th></tr><tr><td>成交额</td><td>订单中商家实收金额(元)之和</td></tr><tr><td>货款成本</td><td>按商家编码匹配莆田/义乌成本表</td></tr><tr><td>包装损耗</td><td>货款成本×5%</td></tr><tr><td>推广费</td><td>推广报表各商品ID的总花费(元)之和（跳过合计行），含无订单链接</td></tr><tr><td>技术服务费</td><td>成交额×0.6%</td></tr><tr><td>快递费</td><td>订单数×2.5元/单</td></tr><tr><td>税费</td><td>莆田实收×1.5%＋义乌实收×5%。优先按明确发货仓，缺发货仓按成本匹配；跨仓组合按成本占比分摊实收。</td></tr><tr><td>退款损耗</td><td>成交额×5%（预估）</td></tr><tr><td>净利润</td><td>成交额-货款成本-包装损耗-推广费-技术服务费-快递费-税费-退款损耗</td></tr></table>';
       // 分析建议
       ar+='<div style="font-size:13px;margin-bottom:8px;font-weight:600">💡 分析建议</div><ul style="font-size:12px;line-height:1.8;margin:0;padding-left:18px">';
       if(net_total<0) ar+='<li>整体净利润为负（'+r1(net_total)+'元），需重点关注：检查成本端是否有降价空间、调整亏损链接的售价或暂停推广</li>';
@@ -497,7 +525,8 @@ function exportCSV(){
     if(is_skip){ unmatched_ex.push({pid:pid_ex,code:code,name:name_ex,income:income_ex,reason:'订单状态('+status+')'}); continue; }
     var mc_result=mc(code);
     if(!mc_result){ unmatched_ex.push({pid:pid_ex,code:code,name:name_ex,income:income_ex,reason:'成本未匹配'}); continue; }
-    var income=income_ex; var rowQty=parseInt(o[QTY_COL]||1);var cost=mc_result.c*mc_result.m*rowQty; var pack_cost=cost*0.05; var tech_fee=income*0.006; var tax=income*0.015; var refund=income*0.05;
+    var income=income_ex; var rowQty=parseInt(o[QTY_COL]||1);var cost=mc_result.c*mc_result.m*rowQty; var pack_cost=cost*0.05; var tech_fee=income*0.006; var tax=calculateWarehouseTax(income,o,mc_result); var refund=income*0.05;
+    if(tax===null){ unmatched_ex.push({pid:pid_ex,code:code,name:name_ex,income:income,reason:'计税仓待核对'}); continue; }
     var pid=o['商品id']||o['商品ID']||'';
     if(!pid||!cost_map[pid]) cost_map[pid]={orders:[],income:0,cost:0,pack_cost:0,tech_fee:0,tax:0,refund:0,name:name_map[pid]||o['商品名称']||o['商品标题']||o['名称']||'',code:code,warehouse:'',notif:null,priceErrorCount:0};
     cost_map[pid].warehouse=mergeWarehouse(cost_map[pid].warehouse,mc_result.s);
